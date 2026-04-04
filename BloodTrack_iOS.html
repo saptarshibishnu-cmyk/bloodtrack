@@ -8,11 +8,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BloodTrack">
 <title>BloodTrack</title>
-<!--
-  NO extra files needed in your repo!
-  Tesseract loads from CDN automatically.
-  Just upload this ONE html file to GitHub and it works.
--->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -126,7 +121,7 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
   </div>
   <div>
     <div class="app-bar-title">BloodTrack</div>
-    <div class="app-bar-sub">On-device OCR · No API needed</div>
+    <div class="app-bar-sub">Smart Indian lab report reader</div>
   </div>
   <div class="free-pill">FREE</div>
 </div>
@@ -143,8 +138,8 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
     <div class="info-card">
       <div class="info-icon">✨</div>
       <div>
-        <div class="info-title">Free · No API key · Works on iPhone</div>
-        <div class="info-body">OCR runs in your browser. First scan downloads the language engine once (~10MB), then works offline.</div>
+        <div class="info-title">Tuned for Indian lab reports</div>
+        <div class="info-body">Reads Lupin, SRL, Thyrocare, Metropolis, Dr Lal and similar formats. Extracts patient name, date, and all test values automatically.</div>
       </div>
     </div>
 
@@ -220,11 +215,11 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
       <div class="card-bd">
         <div class="field-row">
           <div class="field-lbl">Patient name</div>
-          <input class="field" id="patient-name" type="text" placeholder="e.g. Priya Nair" oninput="syncPatient()" autocomplete="name" autocorrect="off" autocapitalize="words">
+          <input class="field" id="patient-name" type="text" placeholder="e.g. Ms. Raosona Begam" oninput="syncPatient()" autocomplete="name" autocorrect="off" autocapitalize="words">
         </div>
         <div class="field-row" style="margin-bottom:0">
           <div class="field-lbl">Age / gender (optional)</div>
-          <input class="field" id="patient-age" type="text" placeholder="e.g. 38 years, Female" autocorrect="off">
+          <input class="field" id="patient-age" type="text" placeholder="e.g. 58 years, Female" autocorrect="off">
         </div>
       </div>
     </div>
@@ -263,36 +258,45 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 <div class="toast" id="toast"></div>
 
 <script>
-/* ── STATE ── */
+/* ═══════════════════════════════════
+   STATE
+═══════════════════════════════════ */
 let queue=[], allData={}, patientInfo={name:'',age:'',gender:''};
 let pendingDateResolve=null, tWorker=null;
 
-/* ── INIT ── */
+/* ═══════════════════════════════════
+   INIT
+═══════════════════════════════════ */
 function init(){
   try{const p=localStorage.getItem('bt_patient');if(p){patientInfo=JSON.parse(p);syncPatientUI();}}catch(e){}
   try{const d=localStorage.getItem('bt_data');if(d){allData=JSON.parse(d);}}catch(e){}
 }
 
-/* ── TESSERACT v5 WORKER ──
-   Key fix: do NOT pass workerPath/corePath/langPath manually.
-   Let Tesseract v5 resolve its own CDN paths automatically.
-   Only pass the logger. Language = 'eng'. ── */
+/* ═══════════════════════════════════
+   TESSERACT WORKER
+═══════════════════════════════════ */
 async function getWorker(onProg){
   if(tWorker) return tWorker;
   tWorker = await Tesseract.createWorker('eng', 1, {
     logger: m=>{
       if(!onProg) return;
       const p=Math.round((m.progress||0)*100);
-      if(m.status==='loading tesseract core')         onProg('Loading OCR engine…',      'First use — please wait', Math.max(5, p*0.3));
-      else if(m.status==='loading language traineddata') onProg('Loading language data…', 'Downloading English pack',  30+p*0.35);
-      else if(m.status==='initializing api')          onProg('Initialising…',            'Almost ready',              70);
-      else if(m.status==='recognizing text')          onProg('Reading text…',            'Scanning report',           72+p*0.25);
+      if(m.status==='loading tesseract core')
+        onProg('Loading OCR engine…','First use — please wait', Math.max(5,p*0.3));
+      else if(m.status==='loading language traineddata')
+        onProg('Loading language data…','Downloading English pack', 30+p*0.35);
+      else if(m.status==='initializing api')
+        onProg('Initialising…','Almost ready', 70);
+      else if(m.status==='recognizing text')
+        onProg('Reading text…','Scanning report', 72+p*0.25);
     }
   });
   return tWorker;
 }
 
-/* ── TABS ── */
+/* ═══════════════════════════════════
+   UI
+═══════════════════════════════════ */
 function showTab(t){
   document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['upload','table','export'][i]===t));
   document.querySelectorAll('.screen').forEach(el=>el.classList.remove('active'));
@@ -300,15 +304,11 @@ function showTab(t){
   if(t==='table') renderTable();
   if(t==='export') renderExportSummary();
 }
-
-/* ── TOAST ── */
 function toast(msg,dur=3500){
   const el=document.getElementById('toast');
   el.textContent=msg; el.classList.add('show');
   clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),dur);
 }
-
-/* ── PATIENT ── */
 function initials(n){return(n||'?').trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().substring(0,2);}
 function syncPatientUI(){
   document.getElementById('patient-name').value=patientInfo.name||'';
@@ -328,14 +328,26 @@ function syncPatient(){
   try{localStorage.setItem('bt_patient',JSON.stringify(patientInfo));}catch(e){}
   updateBanner();
 }
+function setProgress(label,sub,pct){
+  document.getElementById('prog-wrap').style.display='';
+  document.getElementById('prog-label').textContent=label;
+  document.getElementById('prog-sub').textContent=sub;
+  document.getElementById('prog-fill').style.width=Math.min(Math.round(pct),98)+'%';
+}
+function hideProgress(){
+  document.getElementById('prog-fill').style.width='100%';
+  setTimeout(()=>document.getElementById('prog-wrap').style.display='none',700);
+}
 
-/* ── FILE HANDLING ── */
+/* ═══════════════════════════════════
+   FILE HANDLING
+═══════════════════════════════════ */
 function handleFiles(input){
   if(!input.files||!input.files.length) return;
   Array.from(input.files).forEach(file=>{
     const reader=new FileReader();
     reader.onload=e=>{
-      queue.push({file, dataUrl:e.target.result, status:'pending', id:Date.now()+Math.random()});
+      queue.push({file,dataUrl:e.target.result,status:'pending',id:Date.now()+Math.random()});
       renderQueue();
       document.getElementById('queue-sec').style.display='';
       document.getElementById('img-grid').style.display='';
@@ -345,7 +357,6 @@ function handleFiles(input){
   });
   input.value='';
 }
-
 function renderQueue(){
   const map={pending:'⏳ Ready',analyzing:'🔍 Reading…',done:'✅ Done',error:'❌ Error'};
   document.getElementById('img-grid').innerHTML=queue.map((it,i)=>`
@@ -367,19 +378,9 @@ function clearQueue(){
   document.getElementById('recent-cards').innerHTML='';
 }
 
-/* ── PROGRESS ── */
-function setProgress(label,sub,pct){
-  document.getElementById('prog-wrap').style.display='';
-  document.getElementById('prog-label').textContent=label;
-  document.getElementById('prog-sub').textContent=sub;
-  document.getElementById('prog-fill').style.width=Math.min(Math.round(pct),98)+'%';
-}
-function hideProgress(){
-  document.getElementById('prog-fill').style.width='100%';
-  setTimeout(()=>document.getElementById('prog-wrap').style.display='none',700);
-}
-
-/* ── DATE MODAL ── */
+/* ═══════════════════════════════════
+   DATE MODAL
+═══════════════════════════════════ */
 function askDate(detected,idx){
   return new Promise(resolve=>{
     pendingDateResolve=resolve;
@@ -396,21 +397,23 @@ function confirmDate(){
   if(pendingDateResolve){pendingDateResolve(v);pendingDateResolve=null;}
 }
 
-/* ── PREPARE IMAGE ── */
+/* ═══════════════════════════════════
+   IMAGE PREP
+═══════════════════════════════════ */
 function prepareImage(dataUrl){
   return new Promise((resolve,reject)=>{
     const img=new window.Image();
     img.onload=()=>{
-      // Scale to ~2000px longest side — optimal for Tesseract
-      const MAX=2000;
-      const s=Math.min(MAX/img.width, MAX/img.height, 2.5); // also upscale small images
+      const MAX=2400;
+      const s=Math.min(MAX/img.width, MAX/img.height, 3.0);
       const w=Math.round(img.width*s), h=Math.round(img.height*s);
       const c=document.createElement('canvas');
       c.width=w; c.height=h;
       const ctx=c.getContext('2d');
       ctx.fillStyle='#ffffff';
       ctx.fillRect(0,0,w,h);
-      ctx.filter='grayscale(1) contrast(1.5) brightness(1.1)';
+      // Sharpen for OCR — higher contrast helps column detection
+      ctx.filter='grayscale(1) contrast(1.6) brightness(1.05)';
       ctx.drawImage(img,0,0,w,h);
       resolve(c);
     };
@@ -419,7 +422,9 @@ function prepareImage(dataUrl){
   });
 }
 
-/* ── MAIN ANALYZE LOOP ── */
+/* ═══════════════════════════════════
+   MAIN ANALYZE LOOP
+═══════════════════════════════════ */
 async function analyzeAll(){
   const pending=queue.filter(q=>q.status==='pending');
   if(!pending.length){toast('No pending reports');return;}
@@ -434,19 +439,17 @@ async function analyzeAll(){
       const canvas=await prepareImage(item.dataUrl);
 
       const worker=await getWorker((lbl,sub,pct)=>setProgress(`Report ${i+1} of ${pending.length}`,sub,pct));
+      const {data}=await worker.recognize(canvas);
+      const rawText=(data&&data.text)?data.text:'';
 
-      // ── Key fix: pass canvas element directly, not a URL ──
-      const { data } = await worker.recognize(canvas);
-      const rawText = (data && data.text) ? data.text : '';
-
-      if(!rawText || rawText.trim().length < 15)
-        throw new Error('Could not read enough text. Try a clearer, well-lit photo with the full report visible.');
+      if(!rawText||rawText.trim().length<20)
+        throw new Error('Could not read enough text. Ensure the full report is visible and well-lit.');
 
       setProgress(`Report ${i+1} of ${pending.length}`,'Extracting values…',97);
-      const parsed=parseReport(rawText);
+      const parsed=parseIndianLabReport(rawText);
       const date=await askDate(parsed.report_date, i);
 
-      if(parsed.patient_name && !patientInfo.name){
+      if(parsed.patient_name&&!patientInfo.name){
         patientInfo.name=parsed.patient_name;
         patientInfo.age=parsed.patient_age||'';
         patientInfo.gender=parsed.patient_gender||'';
@@ -469,7 +472,6 @@ async function analyzeAll(){
 
     }catch(err){
       item.status='error';
-      // Terminate and reset worker on error so next attempt starts fresh
       if(tWorker){try{await tWorker.terminate();}catch(e){} tWorker=null;}
       console.error(err);
       toast('⚠️ Report '+(i+1)+': '+err.message, 8000);
@@ -486,182 +488,325 @@ async function analyzeAll(){
   if(done) toast(`✅ ${done} report${done>1?'s':''} read! Check Reports tab.`);
 }
 
-/* ══════════════════════════════
-   BLOOD REPORT PARSER
-══════════════════════════════ */
-function parseReport(text){
-  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+/* ═══════════════════════════════════════════════════════════════
+   INDIAN LAB REPORT PARSER
+   Tuned for: Lupin, SRL, Thyrocare, Metropolis, Dr Lal, NABL labs
+   
+   Report structure (from the sample image):
+   - Patient info block: "Name : Ms.RAOSONA BEGAM"
+   - Date line: "Collected : 24/Mar/2026 15:52"
+   - Test table rows: "Hemoglobin (Hb)    11.20 L    12-15    g/dL    Spectrophotometry"
+   - Column order: Test Name | Result | Bio.Ref.Range | Unit | Method
+   - Status flags: H = high, L = low (appear right after the numeric result)
+═══════════════════════════════════════════════════════════════ */
+function parseIndianLabReport(text){
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l.length>0);
 
+  /* ── Patient Name ──
+     Looks for: "Name : Ms.RAOSONA BEGAM" or "Name: JOHN DOE" */
   let patient_name=null;
-  for(const rx of[
-    /patient(?:'?s)?\s*name\s*[:\-]\s*([A-Za-z][A-Za-z .]{2,35})/i,
-    /pt\.?\s*name\s*[:\-]\s*([A-Za-z][A-Za-z .]{2,35})/i,
-    /^name\s*[:\-]\s*([A-Za-z][A-Za-z .]{2,35})/im
-  ]){
-    const m=text.match(rx);
-    if(m&&m[1].trim().length>3&&!/test|report|param|result|range/i.test(m[1])){
-      patient_name=m[1].trim().replace(/\s+/g,' '); break;
-    }
+  const nameM = text.match(/(?:^|\n)\s*Name\s*:\s*(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*([A-Z][A-Z\s\.]{2,40})/m);
+  if(nameM){
+    patient_name = nameM[1].trim().replace(/\s+/g,' ');
+    // Clean up: remove trailing garbage like addresses
+    patient_name = patient_name.replace(/\s+(BOLPUR|KOLKATA|MUMBAI|DELHI|BENGAL|ROAD|STREET|NAGAR|PARA|PUR).*$/i,'').trim();
   }
 
-  let patient_age=null;
-  const am=text.match(/age\s*[:\-\/]?\s*(\d{1,3})\s*(?:yrs?|years?)?/i)||
-            text.match(/(\d{1,3})\s*(?:yrs?|years?)\s*[\/|,]/i);
-  if(am) patient_age=am[1]+' yrs';
+  /* ── Age & Gender ──
+     Looks for: "Age/Gender : 58 Y 0 M 0 D /Female" or "Age: 45 Yrs Sex: Male" */
+  let patient_age=null, patient_gender=null;
+  const agGenderM = text.match(/Age\s*[\/\-]?\s*Gender\s*:\s*(\d{1,3})\s*Y.*?\/(Male|Female)/i) ||
+                    text.match(/Age\s*:\s*(\d{1,3})\s*(?:Yrs?|Years?).*?(?:Sex|Gender)\s*:\s*(Male|Female)/i) ||
+                    text.match(/(\d{1,3})\s*(?:Yrs?|Years?)\s*[\/|,]\s*(Male|Female)/i);
+  if(agGenderM){
+    patient_age = agGenderM[1]+' yrs';
+    patient_gender = /female/i.test(agGenderM[2])?'Female':'Male';
+  } else {
+    const ageOnly=text.match(/Age\s*:\s*(\d{1,3})\s*(?:Yrs?|Years?)/i);
+    if(ageOnly) patient_age=ageOnly[1]+' yrs';
+    if(/\bFemale\b/i.test(text)) patient_gender='Female';
+    else if(/\bMale\b/i.test(text)) patient_gender='Male';
+  }
 
-  let patient_gender=null;
-  const gm=text.match(/(?:sex|gender)\s*[:\-]\s*(male|female|m\b|f\b)/i);
-  if(gm) patient_gender=/^f/i.test(gm[1])?'Female':'Male';
-  else if(/\bfemale\b/i.test(text)) patient_gender='Female';
-  else if(/\bmale\b/i.test(text)&&!/female/i.test(text)) patient_gender='Male';
-
+  /* ── Date ──
+     Looks for: "Collected : 24/Mar/2026" or "Collection Date: 24-03-2026"
+     Priority: Collected > Collection Date > Sample Date > Report Date */
   let report_date=null;
-  for(const rx of[
-    /(?:collection\s*date|sample\s*date|report\s*date|date\s*of\s*(?:collection|report)|dated?|dt)\s*[:\-]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i,
-    /(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4})/,
-    /(\d{1,2}[\s\-]+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s\-]+\d{4})/i
-  ]){
+  const datePatterns=[
+    /(?:Collected|Collection\s*Date|Sample\s*Date)\s*:\s*(\d{1,2}[\/\-\s]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\/\-\s]+\d{4})/i,
+    /(?:Collected|Collection\s*Date|Sample\s*Date)\s*:\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4})/i,
+    /(?:Report\s*Date|Reported)\s*:\s*(\d{1,2}[\/\-\s]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\/\-\s]+\d{4})/i,
+    /(?:Report\s*Date|Reported)\s*:\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4})/i,
+    /(\d{1,2}[\/\-](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[\/\-]\d{4})/i,
+    /(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4})/
+  ];
+  for(const rx of datePatterns){
     const m=text.match(rx);
     if(m){report_date=toISO(m[1]);if(report_date)break;}
   }
 
+  /* ── Lab Name ──
+     Look for known lab brands first, then first meaningful line */
   let lab_name=null;
-  for(const line of lines.slice(0,8)){
-    if(line.length>=4&&line.length<=70&&/[A-Za-z]{3}/.test(line)
-      &&!/^(patient|name|age|sex|date|ref|sample|report|test|sr|page|printed|barcode)/i.test(line)){
-      lab_name=line; break;
-    }
+  const knownLabs=['Lupin Diagnostics','SRL Diagnostics','Thyrocare','Metropolis','Dr Lal PathLabs',
+                   'Apollo Diagnostics','Medanta','Fortis','AIIMS','Narayana','Max Healthcare'];
+  for(const lab of knownLabs){
+    if(text.toLowerCase().includes(lab.toLowerCase())){lab_name=lab;break;}
   }
-
-  return{patient_name,patient_age,patient_gender,report_date,lab_name,
-         parameters:extractParams(lines,text)};
-}
-
-function toISO(s){
-  if(!s) return null;
-  s=s.trim().replace(/O/g,'0').replace(/[lI]\b/g,'1');
-  let m=s.match(/^(\d{1,2})[\/\-. ]+(\d{1,2})[\/\-. ]+(\d{4})$/);
-  if(m){ return +m[2]>12
-    ? `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`
-    : `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
-  m=s.match(/^(\d{1,2})[\/\-. ]+(\d{1,2})[\/\-. ]+(\d{2})$/);
-  if(m){ const y=+m[3]>50?'19'+m[3]:'20'+m[3];
-    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
-  const mo={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
-            jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
-  m=s.match(/(\d{1,2})[\s\-]+([a-z]{3})[a-z]*[\s\-]+(\d{4})/i);
-  if(m&&mo[m[2].toLowerCase()])
-    return `${m[3]}-${mo[m[2].toLowerCase()]}-${m[1].padStart(2,'0')}`;
-  return null;
-}
-
-function extractParams(lines,fullText){
-  const params=[],seen=new Set();
-
-  for(const line of lines){
-    if(line.length<4||line.length>180||skipLine(line)) continue;
-    const norm=line.replace(/\s+/g,' ');
-
-    // Pattern A: whitespace-separated columns
-    const mA=norm.match(/^(.{3,52}?)\s{2,}(\d[\d.]*)\s{0,5}([A-Za-z\/%()\^µugmLlpdfKU°%*³²±]+)?\s*(?:[([]?([\d.]+\s*[-–]\s*[\d.]+)[)\]]?)?\s*(High|Low|Normal|H\b|L\b|\*+|Abnormal)?$/i);
-    // Pattern B: colon-separated
-    const mB=norm.match(/^(.{3,45}?)\s*[:\-]\s*(\d[\d.]*)\s*([A-Za-z\/%()\^µugmLlpdfKU°%*³²±]+)?\s*(?:[([]?([\d.]+\s*[-–]\s*[\d.]+)[)\]]?)?/i);
-
-    const m=mA||mB; if(!m) continue;
-    const name=m[1].replace(/[:.*#\-_|]+$/,'').replace(/\s+/g,' ').trim();
-    if(!name||name.length<2||name.length>55) continue;
-    if(seen.has(name.toLowerCase())) continue;
-    if(skipLine(name)||!/[A-Za-z]/.test(name)) continue;
-
-    const value=m[2];
-    const unit=(m[3]||'').replace(/[()[\]]/g,'').trim().substring(0,20);
-    const range=(m[4]||'').trim();
-    const sr=(m[5]||'').toLowerCase().replace(/\*/g,'h').replace('abnormal','h');
-    let status='normal';
-    if(sr.startsWith('h')) status='high';
-    else if(sr.startsWith('l')) status='low';
-    else if(range) status=calcStatus(parseFloat(value),range);
-
-    seen.add(name.toLowerCase());
-    params.push({name,value,unit,range,status});
-  }
-
-  // Fallback: match known test names
-  if(params.length<3){
-    for(const t of knownTests()){
-      if(seen.has(t.n.toLowerCase())) continue;
-      const rx=new RegExp('\\b'+t.n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
-                         +'\\b[^\\n]{0,35}?(\\d+[.\\d]*)','i');
-      const m=fullText.match(rx);
-      if(m){
-        seen.add(t.n.toLowerCase());
-        params.push({name:t.n,value:m[1],unit:t.u||'',range:t.r||'',
-                     status:t.r?calcStatus(parseFloat(m[1]),t.r):'normal'});
+  if(!lab_name){
+    for(const line of lines.slice(0,10)){
+      if(line.length>=5&&line.length<=60&&/[A-Za-z]{4}/.test(line)
+         &&!/^(name|age|sex|date|ref|sample|patient|mobile|address|uhid|uid)/i.test(line)
+         &&!/^\d/.test(line)){
+        lab_name=line.replace(/[^A-Za-z\s]/g,'').trim();
+        if(lab_name.length>4) break;
       }
     }
   }
+
+  /* ── Parameters ── */
+  const parameters = extractLabParams(lines, text);
+
+  return {patient_name, patient_age, patient_gender, report_date, lab_name, parameters};
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PARAMETER EXTRACTION — Indian lab table format
+   
+   The key insight from the sample report:
+   Column layout:  TestName    |  Result [H/L]  |  RefRange  |  Unit  |  Method
+   
+   Strategy:
+   1. Find lines that contain a numeric result (possibly followed by H or L)
+   2. The test name is the text before the number
+   3. Reference range and unit follow the number
+   4. Skip header lines, section headers (bold text like "Hemoglobin (Hb)")
+      — wait, actually section headers ARE test names (Hb is a test)
+   5. Skip non-test lines: barcode, address, doctor info, footer text
+═══════════════════════════════════════════════════════════════ */
+function extractLabParams(lines, fullText){
+  const params=[], seen=new Set();
+
+  /* Lines to always skip */
+  const SKIP_RX = /^(test\s*name|result|bio\.?\s*ref|unit|method|investigation|parameter|
+    differential|absolute|leucocyte|count\s*\(|peripheral|blood\s*smear|rbc:-|wbc:-|platelet:-|
+    end\s*of\s*report|reports\s*to\s*follow|nabl|accredited|registered|corporate|please\s*check|
+    this\s*test\s*has|ip\/op|report\s*status|client|doctor|mobile|address|uhid|barcode|
+    specimen|collected|reported|ref\s*doctor|client\s*code|client\s*name|client\s*add|
+    good\s*health|laboratory|diagnostics\s*limited)/ix;
+
+  /* A line is a test row if it contains a standalone number (the result) */
+  const NUM_RX = /\b(\d{1,7}(?:\.\d{1,4})?)\s*(H|L|N)?\b/;
+
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(!line||line.length<3||line.length>200) continue;
+    if(SKIP_RX.test(line.trim())) continue;
+
+    /* Must contain a number to be a test result line */
+    const numM=line.match(NUM_RX);
+    if(!numM) continue;
+
+    const rawNum=numM[1];
+    const numVal=parseFloat(rawNum);
+
+    /* Filter out obviously non-test numbers */
+    if(isNaN(numVal)) continue;
+    if(numVal>1000000) continue;               // barcode/phone numbers
+    if(/^\d{6,}$/.test(rawNum)) continue;      // long integer = not a result
+    if(/\d{2}:\d{2}/.test(line)) continue;    // time line
+    if(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(line)) continue; // date line
+    if(/(?:mobile|phone|tel|fax|pin|zip|barcode|uhid|code)\s*[:=]/i.test(line)) continue;
+
+    /* Extract the test name = everything before the number */
+    const numIndex=line.indexOf(rawNum);
+    let rawName=line.substring(0,numIndex).trim();
+
+    /* Clean the name */
+    rawName=rawName
+      .replace(/\s*\(?\s*Hb\s*\)?\s*$/, ' (Hb)')  // keep abbreviations
+      .replace(/[:.\-]+$/, '')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    if(!rawName||rawName.length<2||rawName.length>70) continue;
+    if(seen.has(rawName.toLowerCase())) continue;
+
+    /* Skip if name looks like garbage / address / non-test */
+    if(/^\d/.test(rawName)) continue;
+    if(/(?:page|ip|op|si\s*no|s\.no|sr\.no)/i.test(rawName)) continue;
+    if(!/[A-Za-z]{2}/.test(rawName)) continue;
+
+    /* Extract status (H/L after the number) */
+    const afterNum=line.substring(numIndex+rawNum.length);
+    const statusM=afterNum.match(/^\s*(H|L|N)\b/i);
+    const rawStatus=(statusM?statusM[1]:'').toUpperCase();
+
+    /* Extract reference range and unit from rest of line */
+    // Format: "  11.20 L    12-15    g/dL    Spectrophotometry"
+    // or:     "  3.92    3.8-4.8    Million/cu.mm    Impedance"
+    const restOfLine=afterNum.replace(/^\s*(H|L|N)\b/i,'').trim();
+    const {range, unit} = extractRangeUnit(restOfLine);
+
+    /* Determine status */
+    let status='normal';
+    if(rawStatus==='H') status='high';
+    else if(rawStatus==='L') status='low';
+    else if(range) status=calcStatus(numVal, range);
+
+    seen.add(rawName.toLowerCase());
+    params.push({name:rawName, value:rawNum, unit, range, status});
+  }
+
+  /* If very few params found, fall back to known-test scan */
+  if(params.length<3){
+    for(const t of knownIndianTests()){
+      if(seen.has(t.n.toLowerCase())) continue;
+      const rx=new RegExp('\\b'+t.n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
+                         +'[^\\n]{0,30}?(\\d+[.\\d]*)\\s*(H|L)?','im');
+      const m=fullText.match(rx);
+      if(m){
+        seen.add(t.n.toLowerCase());
+        const v=parseFloat(m[1]);
+        const st=(m[2]||'').toUpperCase();
+        params.push({
+          name:t.n, value:m[1], unit:t.u||'', range:t.r||'',
+          status: st==='H'?'high': st==='L'?'low': t.r?calcStatus(v,t.r):'normal'
+        });
+      }
+    }
+  }
+
   return params;
+}
+
+/* Extract reference range and unit from the tail of a result line.
+   Examples:
+     "  12-15    g/dL    Spectrophotometry"  → range=12-15, unit=g/dL
+     "  3.8-4.8    Million/cu.mm"            → range=3.8-4.8, unit=Million/cu.mm
+     "  4000-10000    Cells/cu.mm"           → range=4000-10000, unit=Cells/cu.mm
+     "  150000-410000    per cu.mm"          → range=150000-410000, unit=per cu.mm
+*/
+function extractRangeUnit(tail){
+  let range='', unit='';
+  if(!tail) return {range,unit};
+
+  // Match reference range: digits - digits (with optional decimals)
+  const rangeM=tail.match(/(\d[\d.,]*\s*[-–]\s*\d[\d.,]*)/);
+  if(rangeM){
+    range=rangeM[1].replace(/\s/g,'').replace(',','');
+  }
+
+  // Match unit: comes after the range, is a word with letters
+  // Common units: g/dL, %, fL, pg, Cells/cu.mm, Million/cu.mm, per cu.mm, U/L, mg/dL, mEq/L
+  const unitM=tail.match(/(?:\d[\d.,]*\s*[-–]\s*\d[\d.,]*)\s+([A-Za-z%][A-Za-z0-9\/\.\s]{0,25}?)(?:\s{2,}|$)/);
+  if(unitM){
+    unit=unitM[1].trim();
+  } else {
+    // Try grabbing first word-like token that looks like a unit
+    const tok=tail.replace(/\d[\d.,]*\s*[-–]\s*\d[\d.,]*/,'').trim().split(/\s{2,}/)[0]||'';
+    if(/^[A-Za-z%]/.test(tok)&&tok.length<=25) unit=tok.trim();
+  }
+
+  // Clean unit
+  unit=unit.replace(/\s+/g,' ').trim();
+
+  return {range, unit};
 }
 
 function calcStatus(v,r){
   const m=(r||'').replace(/\s/g,'').match(/^([\d.]+)[-–]([\d.]+)$/);
   if(!m) return 'normal';
   const lo=+m[1],hi=+m[2];
-  return isNaN(lo)||isNaN(hi)?'normal':v<lo?'low':v>hi?'high':'normal';
+  return isNaN(lo)||isNaN(hi)?'normal': v<lo?'low': v>hi?'high': 'normal';
 }
-function skipLine(s){
-  return /^(test\b|investigation|parameter|result\b|value\b|unit\b|reference|normal\s*range|method|remark|flag\b|status\b|report\s*no|patient\b|name\b|age\b|sex\b|gender\b|date\b|sample\b|specimen|lab\s*no|doctor\b|ref\.?\s*by|page\s*\d|printed|generated|barcode|accession|collected|received|registered|sr\.?\s*no|s\.?\s*no|reporting)/i.test(s.trim());
+
+/* ── ISO date conversion ── */
+function toISO(s){
+  if(!s) return null;
+  s=s.trim().replace(/\s+/g,'/');
+  // "24/Mar/2026" or "24-Mar-2026"
+  const mo={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
+            jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+  let m=s.match(/^(\d{1,2})[\/\-]+([A-Za-z]{3})[a-z]*[\/\-]+(\d{4})$/i);
+  if(m&&mo[m[2].toLowerCase()])
+    return `${m[3]}-${mo[m[2].toLowerCase()]}-${m[1].padStart(2,'0')}`;
+  // "24/03/2026" or "03/24/2026"
+  m=s.match(/^(\d{1,2})[\/\-\.]+(\d{1,2})[\/\-\.]+(\d{4})$/);
+  if(m){ return +m[2]>12
+    ?`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`
+    :`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
+  // "24/03/26"
+  m=s.match(/^(\d{1,2})[\/\-\.]+(\d{1,2})[\/\-\.]+(\d{2})$/);
+  if(m){ const y=+m[3]>50?'19'+m[3]:'20'+m[3];
+    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
+  return null;
 }
-function knownTests(){return[
-  {n:'Haemoglobin',u:'g/dL',r:'12.0-17.0'},{n:'Hemoglobin',u:'g/dL',r:'12.0-17.0'},
-  {n:'RBC Count',u:'mill/cmm',r:'3.8-5.8'},{n:'WBC Count',u:'thou/cmm',r:'4.0-11.0'},
-  {n:'Platelet Count',u:'thou/cmm',r:'150-400'},{n:'PCV',u:'%',r:'36-50'},
-  {n:'MCV',u:'fL',r:'80-100'},{n:'MCH',u:'pg',r:'27-33'},{n:'MCHC',u:'g/dL',r:'31.5-36'},
-  {n:'Neutrophils',u:'%',r:'50-70'},{n:'Lymphocytes',u:'%',r:'20-40'},
+
+/* ── Known Indian test reference list (fallback only) ── */
+function knownIndianTests(){return[
+  {n:'Hemoglobin',u:'g/dL',r:'12.0-17.0'},{n:'Haemoglobin',u:'g/dL',r:'12.0-17.0'},
+  {n:'Red Blood Cell',u:'Million/cu.mm',r:'3.8-5.8'},
+  {n:'Packed Cell Volume',u:'%',r:'36-46'},
+  {n:'Mean Corpuscular Volume',u:'fL',r:'83-101'},
+  {n:'Mean Corpuscular Hemoglobin',u:'pg',r:'27-32'},
+  {n:'RDW-CV',u:'%',r:'11.6-14'},
+  {n:'Total Leucocyte Count',u:'Cells/cu.mm',r:'4000-10000'},
+  {n:'Neutrophils',u:'%',r:'40-80'},{n:'Lymphocytes',u:'%',r:'20-40'},
   {n:'Monocytes',u:'%',r:'2-10'},{n:'Eosinophils',u:'%',r:'1-6'},
-  {n:'ESR',u:'mm/hr',r:'0-20'},{n:'HbA1c',u:'%',r:'4.0-5.6'},
-  {n:'Blood Glucose Fasting',u:'mg/dL',r:'70-100'},{n:'Blood Glucose PP',u:'mg/dL',r:'70-140'},
-  {n:'Random Blood Glucose',u:'mg/dL',r:'70-140'},
-  {n:'Serum Creatinine',u:'mg/dL',r:'0.6-1.2'},{n:'Blood Urea',u:'mg/dL',r:'17-43'},
-  {n:'Uric Acid',u:'mg/dL',r:'3.5-7.2'},{n:'Total Cholesterol',u:'mg/dL',r:'0-200'},
-  {n:'Triglycerides',u:'mg/dL',r:'0-150'},{n:'HDL Cholesterol',u:'mg/dL',r:'40-60'},
-  {n:'LDL Cholesterol',u:'mg/dL',r:'0-100'},{n:'VLDL Cholesterol',u:'mg/dL',r:'0-30'},
+  {n:'Basophils',u:'%',r:'0-2'},
+  {n:'Platelet Count',u:'per cu.mm',r:'150000-410000'},
+  {n:'Mean Platelet Volume',u:'fL',r:'7.4-12.0'},
+  {n:'HbA1c',u:'%',r:'4.0-5.6'},
+  {n:'Fasting Blood Glucose',u:'mg/dL',r:'70-100'},
+  {n:'Serum Creatinine',u:'mg/dL',r:'0.6-1.2'},
+  {n:'Blood Urea',u:'mg/dL',r:'17-43'},
+  {n:'Uric Acid',u:'mg/dL',r:'3.5-7.2'},
+  {n:'Total Cholesterol',u:'mg/dL',r:'0-200'},
+  {n:'Triglycerides',u:'mg/dL',r:'0-150'},
+  {n:'HDL Cholesterol',u:'mg/dL',r:'40-60'},
+  {n:'LDL Cholesterol',u:'mg/dL',r:'0-100'},
   {n:'SGOT',u:'U/L',r:'0-40'},{n:'SGPT',u:'U/L',r:'0-40'},
-  {n:'Alkaline Phosphatase',u:'U/L',r:'44-147'},{n:'Total Bilirubin',u:'mg/dL',r:'0.2-1.2'},
-  {n:'Direct Bilirubin',u:'mg/dL',r:'0-0.3'},{n:'Total Protein',u:'g/dL',r:'6.4-8.2'},
-  {n:'Albumin',u:'g/dL',r:'3.5-5.2'},{n:'Serum Calcium',u:'mg/dL',r:'8.5-10.5'},
-  {n:'Serum Sodium',u:'mEq/L',r:'136-145'},{n:'Serum Potassium',u:'mEq/L',r:'3.5-5.0'},
-  {n:'Serum Chloride',u:'mEq/L',r:'98-107'},
-  {n:'TSH',u:'uIU/mL',r:'0.4-4.0'},{n:'T3',u:'ng/dL',r:'80-200'},{n:'T4',u:'ug/dL',r:'5.1-14.1'},
-  {n:'Vitamin D',u:'ng/mL',r:'30-100'},{n:'Vitamin B12',u:'pg/mL',r:'200-900'},
-  {n:'Ferritin',u:'ng/mL',r:'12-300'},{n:'Iron',u:'ug/dL',r:'60-170'},
-  {n:'PSA Total',u:'ng/mL',r:'0-4.0'},
+  {n:'Alkaline Phosphatase',u:'U/L',r:'44-147'},
+  {n:'Total Bilirubin',u:'mg/dL',r:'0.2-1.2'},
+  {n:'Total Protein',u:'g/dL',r:'6.4-8.2'},
+  {n:'Serum Calcium',u:'mg/dL',r:'8.5-10.5'},
+  {n:'Serum Sodium',u:'mEq/L',r:'136-145'},
+  {n:'Serum Potassium',u:'mEq/L',r:'3.5-5.0'},
+  {n:'TSH',u:'uIU/mL',r:'0.4-4.0'},
+  {n:'Vitamin D',u:'ng/mL',r:'30-100'},
+  {n:'Vitamin B12',u:'pg/mL',r:'200-900'},
+  {n:'Ferritin',u:'ng/mL',r:'12-300'},
 ];}
 
-/* ── RENDER RECENT CARDS ── */
+/* ═══════════════════════════════════
+   RENDER RECENT CARDS
+═══════════════════════════════════ */
 function renderRecentCards(){
   const done=queue.filter(q=>q.status==='done'); if(!done.length) return;
   document.getElementById('recent-cards').innerHTML=done.map(q=>`
     <div class="card"><div class="card-hd">
       <div>
         <div style="font-size:13px;font-weight:600">${q.detectedName||patientInfo.name||'Patient'}</div>
-        ${q.labName?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${q.labName.substring(0,40)}</div>`:''}
+        ${q.labName?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${q.labName}</div>`:''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
         ${q.detectedDate?`<div style="background:var(--teal-l);color:var(--teal-d);border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600">${q.detectedDate}</div>`:''}
-        <span class="badge b-ok">${q.extracted||0} values</span>
+        <span class="badge b-ok">${q.extracted||0} values found</span>
       </div>
     </div></div>`).join('');
 }
 
-/* ── TABLE ── */
+/* ═══════════════════════════════════
+   TABLE
+═══════════════════════════════════ */
 function getAllParams(){
   const s=new Set();
   Object.values(allData).forEach(d=>Object.keys(d).forEach(k=>s.add(k)));
   return[...s].sort();
 }
 function renderTable(){
-  const dates=Object.keys(allData).sort(),params=getAllParams();
+  const dates=Object.keys(allData).sort(), params=getAllParams();
   let flags=0;
   Object.values(allData).forEach(d=>Object.values(d).forEach(v=>{if(v.status!=='normal')flags++;}));
   document.getElementById('s-rep').textContent=dates.length;
@@ -680,13 +825,13 @@ function renderTable(){
       <div class="pat-meta">${[patientInfo.age,patientInfo.gender].filter(Boolean).join(', ')||'Patient'} · ${dates.length} report${dates.length>1?'s':''}</div></div>
     </div>`;
   }
-  html+=`<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Unit</th><th>Range</th>`;
+  html+=`<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Unit</th><th>Ref Range</th>`;
   dates.forEach(d=>html+=`<th>${d}</th>`);
   html+=`</tr></thead><tbody>`;
   params.forEach(p=>{
-    html+=`<tr><td style="font-weight:500">${p}</td>`;
+    html+=`<tr><td style="font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis">${p}</td>`;
     const fd=dates.find(d=>allData[d]?.[p]);
-    html+=`<td style="color:var(--muted)">${fd?allData[fd][p].unit:''}</td>`;
+    html+=`<td style="color:var(--muted);font-size:11px">${fd?allData[fd][p].unit:''}</td>`;
     html+=`<td style="color:var(--hint);font-size:11px">${fd?allData[fd][p].range:''}</td>`;
     dates.forEach(d=>{
       const v=allData[d]?.[p];
@@ -703,7 +848,7 @@ function renderTable(){
 }
 
 function renderExportSummary(){
-  const dates=Object.keys(allData).sort(),params=getAllParams();
+  const dates=Object.keys(allData).sort(), params=getAllParams();
   const el=document.getElementById('exp-sum');
   if(!dates.length){el.innerHTML=`<p style="font-size:13px;color:var(--muted)">No data yet.</p>`;return;}
   el.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
@@ -716,10 +861,13 @@ function renderExportSummary(){
 function getName(){return document.getElementById('patient-name').value||'Patient';}
 function getAG(){return document.getElementById('patient-age').value||'';}
 
+/* ═══════════════════════════════════
+   EXPORTS
+═══════════════════════════════════ */
 function exportExcel(){
-  const dates=Object.keys(allData).sort(),params=getAllParams();
+  const dates=Object.keys(allData).sort(), params=getAllParams();
   if(!params.length){toast('No data to export');return;}
-  const name=getName(),ag=getAG();
+  const name=getName(), ag=getAG();
   const rows=[['BloodTrack — Blood Test Report'],[],['Patient',name],
     ...(ag?[['Age/Gender',ag]]:[]),['Generated',new Date().toLocaleDateString('en-IN')],[],
     ['Parameter','Unit','Reference Range',...dates]];
@@ -729,16 +877,16 @@ function exportExcel(){
     dates.forEach(d=>row.push(allData[d]?.[p]?allData[d][p].value:''));
     rows.push(row);
   });
-  const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
+  const wb=XLSX.utils.book_new(), ws=XLSX.utils.aoa_to_sheet(rows);
   XLSX.utils.book_append_sheet(wb,ws,'Blood Reports');
   XLSX.writeFile(wb,`${name.replace(/ /g,'_')}_BloodReports.xlsx`);
   toast('📊 Excel downloaded!');
 }
 
 function exportPDF(){
-  const dates=Object.keys(allData).sort(),params=getAllParams();
+  const dates=Object.keys(allData).sort(), params=getAllParams();
   if(!params.length){toast('No data to export');return;}
-  const name=getName(),ag=getAG();
+  const name=getName(), ag=getAG();
   const{jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
   doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(15,110,86);doc.text('BloodTrack',14,15);
@@ -747,7 +895,7 @@ function exportPDF(){
   doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}  |  Dates: ${dates.join(', ')}`,14,30);
   doc.setDrawColor(15,110,86);doc.setLineWidth(.4);doc.line(14,34,283,34);
   const ecw=Math.max(18,Math.min(34,(200-dates.length*2)/dates.length));
-  const cW=[55,15,26,...Array(dates.length).fill(ecw)];
+  const cW=[60,18,26,...Array(dates.length).fill(ecw)];
   let y=41,x=14;
   doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(120,120,120);
   ['Parameter','Unit','Ref Range',...dates].forEach((h,i)=>{doc.text(String(h),x,y);x+=cW[i];});
@@ -757,7 +905,7 @@ function exportPDF(){
     if(ri%2===0){doc.setFillColor(244,247,245);doc.rect(14,y-3,269,6.5,'F');}
     x=14;
     const fd=dates.find(d=>allData[d]?.[p]);
-    const row=[p.substring(0,25),fd?allData[fd][p].unit:'',fd?(allData[fd][p].range||'').substring(0,13):''];
+    const row=[p.substring(0,28),fd?allData[fd][p].unit:'',fd?(allData[fd][p].range||'').substring(0,13):''];
     dates.forEach(d=>{const v=allData[d]?.[p];row.push(v?v.value+(v.status==='high'?' H':v.status==='low'?' L':''):'—');});
     row.forEach((cell,ci)=>{
       if(ci>2&&String(cell).endsWith(' H'))doc.setTextColor(226,75,74);
@@ -771,46 +919,39 @@ function exportPDF(){
 }
 
 function exportJPEG(){
-  const dates=Object.keys(allData).sort(),params=getAllParams();
+  const dates=Object.keys(allData).sort(), params=getAllParams();
   if(!params.length){toast('No data to export');return;}
-  const name=getName(),ag=getAG();
+  const name=getName(), ag=getAG();
   const canvas=document.createElement('canvas');
-  const cW=155,uW=52,rW=78,dW=98,rH=30,hH=90,pad=20;
+  const cW=170,uW=55,rW=80,dW=100,rH=30,hH=90,pad=20;
   canvas.width=pad*2+cW+uW+rW+dW*dates.length;
   canvas.height=hH+rH*(params.length+1)+pad;
   const ctx=canvas.getContext('2d');
   ctx.fillStyle='#f4f7f5';ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle='#0f6e56';ctx.fillRect(0,0,canvas.width,58);
   ctx.fillStyle='#fff';ctx.font='bold 20px -apple-system,sans-serif';ctx.fillText('🩸 BloodTrack',pad,32);
-  ctx.font='12px -apple-system,sans-serif';ctx.fillStyle='rgba(255,255,255,.85)';
-  ctx.fillText(name+(ag?'  ·  '+ag:''),pad,50);
-  ctx.font='11px sans-serif';ctx.fillStyle='rgba(255,255,255,.6)';
-  ctx.fillText('Generated: '+new Date().toLocaleDateString('en-IN'),pad,64);
+  ctx.font='12px sans-serif';ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillText(name+(ag?'  ·  '+ag:''),pad,50);
+  ctx.font='11px sans-serif';ctx.fillStyle='rgba(255,255,255,.6)';ctx.fillText('Generated: '+new Date().toLocaleDateString('en-IN'),pad,64);
   const sy=hH;
   ctx.fillStyle='#e8f0ec';ctx.fillRect(0,sy,canvas.width,rH);
   ctx.font='bold 11px sans-serif';ctx.fillStyle='#5a7a6a';
   ctx.fillText('Parameter',pad,sy+19);ctx.fillText('Unit',pad+cW,sy+19);
-  ctx.fillText('Range',pad+cW+uW,sy+19);
+  ctx.fillText('Ref Range',pad+cW+uW,sy+19);
   dates.forEach((d,i)=>ctx.fillText(d,pad+cW+uW+rW+i*dW,sy+19));
   params.forEach((p,ri)=>{
     const y=sy+rH*(ri+1);
     ctx.fillStyle=ri%2===0?'#fff':'#f4f7f5';ctx.fillRect(0,y,canvas.width,rH);
-    ctx.font='500 11px sans-serif';ctx.fillStyle='#1a2e25';ctx.fillText(p.substring(0,22),pad,y+19);
+    ctx.font='500 11px sans-serif';ctx.fillStyle='#1a2e25';ctx.fillText(p.substring(0,26),pad,y+19);
     const fd=dates.find(d=>allData[d]?.[p]);
     ctx.font='11px sans-serif';ctx.fillStyle='#5a7a6a';
-    if(fd){
-      ctx.fillText(allData[fd][p].unit||'',pad+cW,y+19);
-      ctx.fillText((allData[fd][p].range||'').substring(0,11),pad+cW+uW,y+19);
-    }
+    if(fd){ctx.fillText(allData[fd][p].unit||'',pad+cW,y+19);ctx.fillText((allData[fd][p].range||'').substring(0,12),pad+cW+uW,y+19);}
     dates.forEach((d,ci)=>{
       const v=allData[d]?.[p],bx=pad+cW+uW+rW+ci*dW;
       if(v){
         ctx.fillStyle=v.status==='high'?'#e24b4a':v.status==='low'?'#185fa5':'#3b6d11';
         ctx.font='bold 11px sans-serif';
         ctx.fillText(v.value+(v.status==='high'?' ↑':v.status==='low'?' ↓':''),bx,y+19);
-      }else{
-        ctx.fillStyle='#c8d5ce';ctx.font='11px sans-serif';ctx.fillText('—',bx,y+19);
-      }
+      }else{ctx.fillStyle='#c8d5ce';ctx.font='11px sans-serif';ctx.fillText('—',bx,y+19);}
     });
   });
   const link=document.createElement('a');
