@@ -8,19 +8,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BloodTrack">
 <title>BloodTrack</title>
-
 <!--
-  TESSERACT FILES NEEDED IN SAME GITHUB REPO FOLDER:
-  1. tesseract.min.js   → https://unpkg.com/tesseract.js@5.0.4/dist/tesseract.min.js
-  2. worker.min.js      → https://unpkg.com/tesseract.js@5.0.4/dist/worker.min.js
-  3. eng.traineddata.gz → https://tessdata.projectnaptha.com/4.0.0/eng.traineddata.gz
-
-  Download each, upload all 4 files to your GitHub repo alongside this HTML.
+  NO extra files needed in your repo!
+  Tesseract loads from CDN automatically.
+  Just upload this ONE html file to GitHub and it works.
 -->
-<script src="tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -46,14 +41,10 @@ body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:v
 .screen{display:none;padding:14px;padding-bottom:max(24px,env(safe-area-inset-bottom));animation:fi .2s ease}
 .screen.active{display:block}
 @keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.info-card{border-radius:14px;padding:14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start}
-.info-ok{background:var(--teal-l);border:1px solid #9fe1cb}
-.info-warn{background:#fffbeb;border:1px solid #fcd34d}
+.info-card{background:var(--teal-l);border:1px solid #9fe1cb;border-radius:14px;padding:14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start}
 .info-icon{font-size:20px;flex-shrink:0}
-.info-title{font-size:13px;font-weight:700;margin-bottom:3px}
+.info-title{font-size:13px;font-weight:700;color:var(--teal-d);margin-bottom:3px}
 .info-body{font-size:12px;color:var(--muted);line-height:1.6}
-.info-body code{background:rgba(0,0,0,.07);padding:1px 5px;border-radius:4px;font-size:11px;font-family:monospace}
-.info-body a{color:var(--teal);font-weight:600;text-decoration:none}
 .card{background:var(--card);border-radius:14px;border:0.5px solid var(--border2);overflow:hidden;margin-bottom:12px}
 .card-hd{padding:11px 14px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
 .card-bd{padding:12px 14px}
@@ -135,9 +126,9 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
   </div>
   <div>
     <div class="app-bar-title">BloodTrack</div>
-    <div class="app-bar-sub">On-device OCR · No API</div>
+    <div class="app-bar-sub">On-device OCR · No API needed</div>
   </div>
-  <div class="free-pill">100% FREE</div>
+  <div class="free-pill">FREE</div>
 </div>
 
 <div class="tab-bar">
@@ -149,25 +140,11 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 <div class="scroll-area">
   <div id="tab-upload" class="screen active">
 
-    <!-- shown if tesseract.min.js didn't load (files not yet uploaded to GitHub) -->
-    <div class="info-card info-warn" id="missing-warn" style="display:none">
-      <div class="info-icon">⚠️</div>
-      <div>
-        <div class="info-title" style="color:#92400e">3 files missing from your GitHub repo</div>
-        <div class="info-body" style="color:#92400e">
-          Download and upload these to your <code>bloodtrack</code> repo alongside this HTML:<br><br>
-          1. <a href="https://unpkg.com/tesseract.js@5.0.4/dist/tesseract.min.js" target="_blank">tesseract.min.js</a><br>
-          2. <a href="https://unpkg.com/tesseract.js@5.0.4/dist/worker.min.js" target="_blank">worker.min.js</a><br>
-          3. <a href="https://tessdata.projectnaptha.com/4.0.0/eng.traineddata.gz" target="_blank">eng.traineddata.gz</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="info-card info-ok" id="ready-info">
+    <div class="info-card">
       <div class="info-icon">✨</div>
       <div>
-        <div class="info-title" style="color:var(--teal-d)">On-device OCR · No server · No API key</div>
-        <div class="info-body">Text recognition runs entirely in your browser. First scan loads language data once, then works offline.</div>
+        <div class="info-title">Free · No API key · Works on iPhone</div>
+        <div class="info-body">OCR runs in your browser. First scan downloads the language engine once (~10MB), then works offline.</div>
       </div>
     </div>
 
@@ -288,46 +265,31 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 <script>
 /* ── STATE ── */
 let queue=[], allData={}, patientInfo={name:'',age:'',gender:''};
-let pendingDateResolve=null, tesseractWorker=null;
+let pendingDateResolve=null, tWorker=null;
 
 /* ── INIT ── */
 function init(){
-  // Check if tesseract.min.js loaded successfully
-  if(typeof Tesseract === 'undefined'){
-    document.getElementById('missing-warn').style.display='flex';
-    document.getElementById('ready-info').style.display='none';
-  }
   try{const p=localStorage.getItem('bt_patient');if(p){patientInfo=JSON.parse(p);syncPatientUI();}}catch(e){}
   try{const d=localStorage.getItem('bt_data');if(d){allData=JSON.parse(d);}}catch(e){}
 }
 
-/* ── TESSERACT WORKER ──
-   workerPath and langPath point to files in the SAME directory as this HTML.
-   Upload worker.min.js and eng.traineddata.gz to your GitHub repo. */
-async function getWorker(onProgress){
-  if(tesseractWorker) return tesseractWorker;
-
-  // Determine base path — works on both GitHub Pages and local
-  const base = window.location.href.substring(0, window.location.href.lastIndexOf('/')+1);
-
-  tesseractWorker = await Tesseract.createWorker('eng', 1, {
-    workerPath:  base + 'worker.min.js',
-    langPath:    base,                    // eng.traineddata.gz lives here
-    corePath:    base + 'tesseract.min.js',
-    cacheMethod: 'write',                 // cache lang data after first load
-    logger: m => {
-      if(!onProgress) return;
-      if(m.status==='loading tesseract core')
-        onProgress('Loading OCR engine…','Downloading core (first time only)',Math.round(m.progress*25));
-      else if(m.status==='loading language traineddata')
-        onProgress('Loading English data…','Downloading language pack (first time only)',25+Math.round(m.progress*35));
-      else if(m.status==='initializing api')
-        onProgress('Initialising OCR…','Almost ready',65);
-      else if(m.status==='recognizing text')
-        onProgress('Reading text…','Scanning report image',70+Math.round(m.progress*25));
+/* ── TESSERACT v5 WORKER ──
+   Key fix: do NOT pass workerPath/corePath/langPath manually.
+   Let Tesseract v5 resolve its own CDN paths automatically.
+   Only pass the logger. Language = 'eng'. ── */
+async function getWorker(onProg){
+  if(tWorker) return tWorker;
+  tWorker = await Tesseract.createWorker('eng', 1, {
+    logger: m=>{
+      if(!onProg) return;
+      const p=Math.round((m.progress||0)*100);
+      if(m.status==='loading tesseract core')         onProg('Loading OCR engine…',      'First use — please wait', Math.max(5, p*0.3));
+      else if(m.status==='loading language traineddata') onProg('Loading language data…', 'Downloading English pack',  30+p*0.35);
+      else if(m.status==='initializing api')          onProg('Initialising…',            'Almost ready',              70);
+      else if(m.status==='recognizing text')          onProg('Reading text…',            'Scanning report',           72+p*0.25);
     }
   });
-  return tesseractWorker;
+  return tWorker;
 }
 
 /* ── TABS ── */
@@ -373,7 +335,7 @@ function handleFiles(input){
   Array.from(input.files).forEach(file=>{
     const reader=new FileReader();
     reader.onload=e=>{
-      queue.push({file,dataUrl:e.target.result,status:'pending',id:Date.now()+Math.random()});
+      queue.push({file, dataUrl:e.target.result, status:'pending', id:Date.now()+Math.random()});
       renderQueue();
       document.getElementById('queue-sec').style.display='';
       document.getElementById('img-grid').style.display='';
@@ -410,7 +372,7 @@ function setProgress(label,sub,pct){
   document.getElementById('prog-wrap').style.display='';
   document.getElementById('prog-label').textContent=label;
   document.getElementById('prog-sub').textContent=sub;
-  document.getElementById('prog-fill').style.width=Math.min(pct,98)+'%';
+  document.getElementById('prog-fill').style.width=Math.min(Math.round(pct),98)+'%';
 }
 function hideProgress(){
   document.getElementById('prog-fill').style.width='100%';
@@ -434,33 +396,31 @@ function confirmDate(){
   if(pendingDateResolve){pendingDateResolve(v);pendingDateResolve=null;}
 }
 
-/* ── PREPARE IMAGE FOR OCR ── */
+/* ── PREPARE IMAGE ── */
 function prepareImage(dataUrl){
   return new Promise((resolve,reject)=>{
     const img=new window.Image();
     img.onload=()=>{
-      const TARGET=2000, longest=Math.max(img.width,img.height);
-      const s=TARGET/longest;
+      // Scale to ~2000px longest side — optimal for Tesseract
+      const MAX=2000;
+      const s=Math.min(MAX/img.width, MAX/img.height, 2.5); // also upscale small images
       const w=Math.round(img.width*s), h=Math.round(img.height*s);
       const c=document.createElement('canvas');
       c.width=w; c.height=h;
       const ctx=c.getContext('2d');
-      ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
-      ctx.filter='contrast(1.4) brightness(1.05) grayscale(1)';
+      ctx.fillStyle='#ffffff';
+      ctx.fillRect(0,0,w,h);
+      ctx.filter='grayscale(1) contrast(1.5) brightness(1.1)';
       ctx.drawImage(img,0,0,w,h);
       resolve(c);
     };
-    img.onerror=()=>reject(new Error('Failed to load image'));
+    img.onerror=()=>reject(new Error('Image load failed'));
     img.src=dataUrl;
   });
 }
 
 /* ── MAIN ANALYZE LOOP ── */
 async function analyzeAll(){
-  if(typeof Tesseract === 'undefined'){
-    toast('⚠️ Tesseract not loaded — upload the 3 missing files to GitHub first.',6000);
-    return;
-  }
   const pending=queue.filter(q=>q.status==='pending');
   if(!pending.length){toast('No pending reports');return;}
   const btn=document.getElementById('analyze-btn');
@@ -475,16 +435,18 @@ async function analyzeAll(){
 
       const worker=await getWorker((lbl,sub,pct)=>setProgress(`Report ${i+1} of ${pending.length}`,sub,pct));
 
-      const result=await worker.recognize(canvas);
-      const rawText=result.data.text||'';
-      if(!rawText||rawText.trim().length<10)
-        throw new Error('Could not read enough text. Take a clearer, well-lit photo with the full report visible.');
+      // ── Key fix: pass canvas element directly, not a URL ──
+      const { data } = await worker.recognize(canvas);
+      const rawText = (data && data.text) ? data.text : '';
+
+      if(!rawText || rawText.trim().length < 15)
+        throw new Error('Could not read enough text. Try a clearer, well-lit photo with the full report visible.');
 
       setProgress(`Report ${i+1} of ${pending.length}`,'Extracting values…',97);
       const parsed=parseReport(rawText);
       const date=await askDate(parsed.report_date, i);
 
-      if(parsed.patient_name&&!patientInfo.name){
+      if(parsed.patient_name && !patientInfo.name){
         patientInfo.name=parsed.patient_name;
         patientInfo.age=parsed.patient_age||'';
         patientInfo.gender=parsed.patient_gender||'';
@@ -499,12 +461,17 @@ async function analyzeAll(){
           allData[date][p.name]={value:p.value,unit:p.unit||'',range:p.range||'',status:p.status||'normal'};
       });
 
-      item.detectedDate=date; item.detectedName=parsed.patient_name;
-      item.labName=parsed.lab_name; item.extracted=(parsed.parameters||[]).length;
+      item.detectedDate=date;
+      item.detectedName=parsed.patient_name;
+      item.labName=parsed.lab_name;
+      item.extracted=(parsed.parameters||[]).length;
       item.status='done';
 
     }catch(err){
-      item.status='error'; console.error(err);
+      item.status='error';
+      // Terminate and reset worker on error so next attempt starts fresh
+      if(tWorker){try{await tWorker.terminate();}catch(e){} tWorker=null;}
+      console.error(err);
       toast('⚠️ Report '+(i+1)+': '+err.message, 8000);
     }
     renderQueue();
@@ -524,15 +491,22 @@ async function analyzeAll(){
 ══════════════════════════════ */
 function parseReport(text){
   const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+
   let patient_name=null;
   for(const rx of[
     /patient(?:'?s)?\s*name\s*[:\-]\s*([A-Za-z][A-Za-z .]{2,35})/i,
     /pt\.?\s*name\s*[:\-]\s*([A-Za-z][A-Za-z .]{2,35})/i,
     /^name\s*[:\-]\s*([A-Za-z][A-Za-z .]{2,35})/im
-  ]){const m=text.match(rx);if(m&&m[1].trim().length>3&&!/test|report|param|result|range/i.test(m[1])){patient_name=m[1].trim().replace(/\s+/g,' ');break;}}
+  ]){
+    const m=text.match(rx);
+    if(m&&m[1].trim().length>3&&!/test|report|param|result|range/i.test(m[1])){
+      patient_name=m[1].trim().replace(/\s+/g,' '); break;
+    }
+  }
 
   let patient_age=null;
-  const am=text.match(/age\s*[:\-\/]?\s*(\d{1,3})\s*(?:yrs?|years?)?/i)||text.match(/(\d{1,3})\s*(?:yrs?|years?)\s*[\/|,]/i);
+  const am=text.match(/age\s*[:\-\/]?\s*(\d{1,3})\s*(?:yrs?|years?)?/i)||
+            text.match(/(\d{1,3})\s*(?:yrs?|years?)\s*[\/|,]/i);
   if(am) patient_age=am[1]+' yrs';
 
   let patient_gender=null;
@@ -546,7 +520,10 @@ function parseReport(text){
     /(?:collection\s*date|sample\s*date|report\s*date|date\s*of\s*(?:collection|report)|dated?|dt)\s*[:\-]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i,
     /(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4})/,
     /(\d{1,2}[\s\-]+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s\-]+\d{4})/i
-  ]){const m=text.match(rx);if(m){report_date=toISO(m[1]);if(report_date)break;}}
+  ]){
+    const m=text.match(rx);
+    if(m){report_date=toISO(m[1]);if(report_date)break;}
+  }
 
   let lab_name=null;
   for(const line of lines.slice(0,8)){
@@ -555,55 +532,87 @@ function parseReport(text){
       lab_name=line; break;
     }
   }
-  return{patient_name,patient_age,patient_gender,report_date,lab_name,parameters:extractParams(lines,text)};
+
+  return{patient_name,patient_age,patient_gender,report_date,lab_name,
+         parameters:extractParams(lines,text)};
 }
 
 function toISO(s){
-  if(!s) return null; s=s.trim().replace(/O/g,'0').replace(/[lI]/g,'1');
+  if(!s) return null;
+  s=s.trim().replace(/O/g,'0').replace(/[lI]\b/g,'1');
   let m=s.match(/^(\d{1,2})[\/\-. ]+(\d{1,2})[\/\-. ]+(\d{4})$/);
-  if(m){if(+m[2]>12)return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-        return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;}
+  if(m){ return +m[2]>12
+    ? `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`
+    : `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
   m=s.match(/^(\d{1,2})[\/\-. ]+(\d{1,2})[\/\-. ]+(\d{2})$/);
-  if(m){const y=+m[3]>50?'19'+m[3]:'20'+m[3];return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;}
-  const mo={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+  if(m){ const y=+m[3]>50?'19'+m[3]:'20'+m[3];
+    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
+  const mo={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
+            jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
   m=s.match(/(\d{1,2})[\s\-]+([a-z]{3})[a-z]*[\s\-]+(\d{4})/i);
-  if(m&&mo[m[2].toLowerCase()]) return `${m[3]}-${mo[m[2].toLowerCase()]}-${m[1].padStart(2,'0')}`;
+  if(m&&mo[m[2].toLowerCase()])
+    return `${m[3]}-${mo[m[2].toLowerCase()]}-${m[1].padStart(2,'0')}`;
   return null;
 }
 
 function extractParams(lines,fullText){
   const params=[],seen=new Set();
+
   for(const line of lines){
     if(line.length<4||line.length>180||skipLine(line)) continue;
     const norm=line.replace(/\s+/g,' ');
+
+    // Pattern A: whitespace-separated columns
     const mA=norm.match(/^(.{3,52}?)\s{2,}(\d[\d.]*)\s{0,5}([A-Za-z\/%()\^µugmLlpdfKU°%*³²±]+)?\s*(?:[([]?([\d.]+\s*[-–]\s*[\d.]+)[)\]]?)?\s*(High|Low|Normal|H\b|L\b|\*+|Abnormal)?$/i);
+    // Pattern B: colon-separated
     const mB=norm.match(/^(.{3,45}?)\s*[:\-]\s*(\d[\d.]*)\s*([A-Za-z\/%()\^µugmLlpdfKU°%*³²±]+)?\s*(?:[([]?([\d.]+\s*[-–]\s*[\d.]+)[)\]]?)?/i);
+
     const m=mA||mB; if(!m) continue;
     const name=m[1].replace(/[:.*#\-_|]+$/,'').replace(/\s+/g,' ').trim();
-    if(!name||name.length<2||name.length>55||seen.has(name.toLowerCase())||skipLine(name)||!/[A-Za-z]/.test(name)) continue;
+    if(!name||name.length<2||name.length>55) continue;
+    if(seen.has(name.toLowerCase())) continue;
+    if(skipLine(name)||!/[A-Za-z]/.test(name)) continue;
+
+    const value=m[2];
     const unit=(m[3]||'').replace(/[()[\]]/g,'').trim().substring(0,20);
     const range=(m[4]||'').trim();
     const sr=(m[5]||'').toLowerCase().replace(/\*/g,'h').replace('abnormal','h');
     let status='normal';
     if(sr.startsWith('h')) status='high';
     else if(sr.startsWith('l')) status='low';
-    else if(range) status=calcStatus(parseFloat(m[2]),range);
+    else if(range) status=calcStatus(parseFloat(value),range);
+
     seen.add(name.toLowerCase());
-    params.push({name,value:m[2],unit,range,status});
+    params.push({name,value,unit,range,status});
   }
+
+  // Fallback: match known test names
   if(params.length<3){
-    for(const t of stdTests()){
+    for(const t of knownTests()){
       if(seen.has(t.n.toLowerCase())) continue;
-      const rx=new RegExp('\\b'+t.n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b[^\\n]{0,35}?(\\d+[.\\d]*)','i');
+      const rx=new RegExp('\\b'+t.n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
+                         +'\\b[^\\n]{0,35}?(\\d+[.\\d]*)','i');
       const m=fullText.match(rx);
-      if(m){seen.add(t.n.toLowerCase());const v=parseFloat(m[1]);params.push({name:t.n,value:m[1],unit:t.u||'',range:t.r||'',status:t.r?calcStatus(v,t.r):'normal'});}
+      if(m){
+        seen.add(t.n.toLowerCase());
+        params.push({name:t.n,value:m[1],unit:t.u||'',range:t.r||'',
+                     status:t.r?calcStatus(parseFloat(m[1]),t.r):'normal'});
+      }
     }
   }
   return params;
 }
-function calcStatus(v,r){const m=(r||'').replace(/\s/g,'').match(/^([\d.]+)[-–]([\d.]+)$/);if(!m)return 'normal';const lo=+m[1],hi=+m[2];return isNaN(lo)||isNaN(hi)?'normal':v<lo?'low':v>hi?'high':'normal';}
-function skipLine(s){return /^(test\b|investigation|parameter|result\b|value\b|unit\b|reference|normal\s*range|method|remark|flag\b|status\b|report\s*no|patient\b|name\b|age\b|sex\b|gender|date\b|sample\b|specimen|lab\s*no|doctor|ref\.?\s*by|page\s*\d|printed|generated|barcode|accession|collected|received|registered|sr\.?\s*no|s\.?\s*no|reporting)/i.test(s.trim());}
-function stdTests(){return[
+
+function calcStatus(v,r){
+  const m=(r||'').replace(/\s/g,'').match(/^([\d.]+)[-–]([\d.]+)$/);
+  if(!m) return 'normal';
+  const lo=+m[1],hi=+m[2];
+  return isNaN(lo)||isNaN(hi)?'normal':v<lo?'low':v>hi?'high':'normal';
+}
+function skipLine(s){
+  return /^(test\b|investigation|parameter|result\b|value\b|unit\b|reference|normal\s*range|method|remark|flag\b|status\b|report\s*no|patient\b|name\b|age\b|sex\b|gender\b|date\b|sample\b|specimen|lab\s*no|doctor\b|ref\.?\s*by|page\s*\d|printed|generated|barcode|accession|collected|received|registered|sr\.?\s*no|s\.?\s*no|reporting)/i.test(s.trim());
+}
+function knownTests(){return[
   {n:'Haemoglobin',u:'g/dL',r:'12.0-17.0'},{n:'Hemoglobin',u:'g/dL',r:'12.0-17.0'},
   {n:'RBC Count',u:'mill/cmm',r:'3.8-5.8'},{n:'WBC Count',u:'thou/cmm',r:'4.0-11.0'},
   {n:'Platelet Count',u:'thou/cmm',r:'150-400'},{n:'PCV',u:'%',r:'36-50'},
@@ -612,6 +621,7 @@ function stdTests(){return[
   {n:'Monocytes',u:'%',r:'2-10'},{n:'Eosinophils',u:'%',r:'1-6'},
   {n:'ESR',u:'mm/hr',r:'0-20'},{n:'HbA1c',u:'%',r:'4.0-5.6'},
   {n:'Blood Glucose Fasting',u:'mg/dL',r:'70-100'},{n:'Blood Glucose PP',u:'mg/dL',r:'70-140'},
+  {n:'Random Blood Glucose',u:'mg/dL',r:'70-140'},
   {n:'Serum Creatinine',u:'mg/dL',r:'0.6-1.2'},{n:'Blood Urea',u:'mg/dL',r:'17-43'},
   {n:'Uric Acid',u:'mg/dL',r:'3.5-7.2'},{n:'Total Cholesterol',u:'mg/dL',r:'0-200'},
   {n:'Triglycerides',u:'mg/dL',r:'0-150'},{n:'HDL Cholesterol',u:'mg/dL',r:'40-60'},
@@ -628,7 +638,7 @@ function stdTests(){return[
   {n:'PSA Total',u:'ng/mL',r:'0-4.0'},
 ];}
 
-/* ── RENDER ── */
+/* ── RENDER RECENT CARDS ── */
 function renderRecentCards(){
   const done=queue.filter(q=>q.status==='done'); if(!done.length) return;
   document.getElementById('recent-cards').innerHTML=done.map(q=>`
@@ -643,17 +653,33 @@ function renderRecentCards(){
       </div>
     </div></div>`).join('');
 }
-function getAllParams(){const s=new Set();Object.values(allData).forEach(d=>Object.keys(d).forEach(k=>s.add(k)));return[...s].sort();}
+
+/* ── TABLE ── */
+function getAllParams(){
+  const s=new Set();
+  Object.values(allData).forEach(d=>Object.keys(d).forEach(k=>s.add(k)));
+  return[...s].sort();
+}
 function renderTable(){
   const dates=Object.keys(allData).sort(),params=getAllParams();
-  let flags=0; Object.values(allData).forEach(d=>Object.values(d).forEach(v=>{if(v.status!=='normal')flags++;}));
+  let flags=0;
+  Object.values(allData).forEach(d=>Object.values(d).forEach(v=>{if(v.status!=='normal')flags++;}));
   document.getElementById('s-rep').textContent=dates.length;
   document.getElementById('s-par').textContent=params.length;
   document.getElementById('s-flag').textContent=flags;
   const el=document.getElementById('tbl-sec');
-  if(!dates.length){el.innerHTML=`<div class="empty"><div class="empty-ico">🩸</div><div class="empty-title">No reports yet</div><div style="font-size:13px">Upload and read blood test photos first</div></div>`;return;}
+  if(!dates.length){
+    el.innerHTML=`<div class="empty"><div class="empty-ico">🩸</div><div class="empty-title">No reports yet</div><div style="font-size:13px">Upload and read blood test photos first</div></div>`;
+    return;
+  }
   let html='';
-  if(patientInfo.name) html+=`<div class="pat-banner" style="margin-bottom:12px"><div class="pat-av">${initials(patientInfo.name)}</div><div><div class="pat-name">${patientInfo.name}</div><div class="pat-meta">${[patientInfo.age,patientInfo.gender].filter(Boolean).join(', ')||'Patient'} · ${dates.length} report${dates.length>1?'s':''}</div></div></div>`;
+  if(patientInfo.name){
+    html+=`<div class="pat-banner" style="margin-bottom:12px">
+      <div class="pat-av">${initials(patientInfo.name)}</div>
+      <div><div class="pat-name">${patientInfo.name}</div>
+      <div class="pat-meta">${[patientInfo.age,patientInfo.gender].filter(Boolean).join(', ')||'Patient'} · ${dates.length} report${dates.length>1?'s':''}</div></div>
+    </div>`;
+  }
   html+=`<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Unit</th><th>Range</th>`;
   dates.forEach(d=>html+=`<th>${d}</th>`);
   html+=`</tr></thead><tbody>`;
@@ -662,20 +688,31 @@ function renderTable(){
     const fd=dates.find(d=>allData[d]?.[p]);
     html+=`<td style="color:var(--muted)">${fd?allData[fd][p].unit:''}</td>`;
     html+=`<td style="color:var(--hint);font-size:11px">${fd?allData[fd][p].range:''}</td>`;
-    dates.forEach(d=>{const v=allData[d]?.[p];
-      if(v){const cls=v.status==='high'?'v-hi':v.status==='low'?'v-lo':'v-ok';const icon=v.status==='high'?'↑':v.status==='low'?'↓':'';html+=`<td class="${cls}">${v.value}${icon?`<sup style="font-size:9px">${icon}</sup>`:''}</td>`;}
-      else html+=`<td style="color:var(--hint)">—</td>`;
+    dates.forEach(d=>{
+      const v=allData[d]?.[p];
+      if(v){
+        const cls=v.status==='high'?'v-hi':v.status==='low'?'v-lo':'v-ok';
+        const icon=v.status==='high'?'↑':v.status==='low'?'↓':'';
+        html+=`<td class="${cls}">${v.value}${icon?`<sup style="font-size:9px">${icon}</sup>`:''}</td>`;
+      }else html+=`<td style="color:var(--hint)">—</td>`;
     });
     html+=`</tr>`;
   });
-  html+=`</tbody></table></div>`; el.innerHTML=html;
+  html+=`</tbody></table></div>`;
+  el.innerHTML=html;
 }
+
 function renderExportSummary(){
   const dates=Object.keys(allData).sort(),params=getAllParams();
   const el=document.getElementById('exp-sum');
   if(!dates.length){el.innerHTML=`<p style="font-size:13px;color:var(--muted)">No data yet.</p>`;return;}
-  el.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px"><div><span style="color:var(--muted)">Reports:</span> <strong>${dates.length}</strong></div><div><span style="color:var(--muted)">Parameters:</span> <strong>${params.length}</strong></div><div><span style="color:var(--muted)">Dates:</span> <strong>${dates[0]}${dates.length>1?' → '+dates[dates.length-1]:''}</strong></div></div>`;
+  el.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
+    <div><span style="color:var(--muted)">Reports:</span> <strong>${dates.length}</strong></div>
+    <div><span style="color:var(--muted)">Parameters:</span> <strong>${params.length}</strong></div>
+    <div><span style="color:var(--muted)">Dates:</span> <strong>${dates[0]}${dates.length>1?' → '+dates[dates.length-1]:''}</strong></div>
+  </div>`;
 }
+
 function getName(){return document.getElementById('patient-name').value||'Patient';}
 function getAG(){return document.getElementById('patient-age').value||'';}
 
@@ -683,13 +720,21 @@ function exportExcel(){
   const dates=Object.keys(allData).sort(),params=getAllParams();
   if(!params.length){toast('No data to export');return;}
   const name=getName(),ag=getAG();
-  const rows=[['BloodTrack — Blood Test Report'],[],['Patient',name],...(ag?[['Age/Gender',ag]]:[]),['Generated',new Date().toLocaleDateString('en-IN')],[],['Parameter','Unit','Reference Range',...dates]];
-  params.forEach(p=>{const fd=dates.find(d=>allData[d]?.[p]);const row=[p,fd?allData[fd][p].unit:'',fd?allData[fd][p].range:''];dates.forEach(d=>row.push(allData[d]?.[p]?allData[d][p].value:''));rows.push(row);});
+  const rows=[['BloodTrack — Blood Test Report'],[],['Patient',name],
+    ...(ag?[['Age/Gender',ag]]:[]),['Generated',new Date().toLocaleDateString('en-IN')],[],
+    ['Parameter','Unit','Reference Range',...dates]];
+  params.forEach(p=>{
+    const fd=dates.find(d=>allData[d]?.[p]);
+    const row=[p,fd?allData[fd][p].unit:'',fd?allData[fd][p].range:''];
+    dates.forEach(d=>row.push(allData[d]?.[p]?allData[d][p].value:''));
+    rows.push(row);
+  });
   const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
   XLSX.utils.book_append_sheet(wb,ws,'Blood Reports');
   XLSX.writeFile(wb,`${name.replace(/ /g,'_')}_BloodReports.xlsx`);
   toast('📊 Excel downloaded!');
 }
+
 function exportPDF(){
   const dates=Object.keys(allData).sort(),params=getAllParams();
   if(!params.length){toast('No data to export');return;}
@@ -710,7 +755,8 @@ function exportPDF(){
   params.forEach((p,ri)=>{
     if(y>192){doc.addPage();y=18;}
     if(ri%2===0){doc.setFillColor(244,247,245);doc.rect(14,y-3,269,6.5,'F');}
-    x=14;const fd=dates.find(d=>allData[d]?.[p]);
+    x=14;
+    const fd=dates.find(d=>allData[d]?.[p]);
     const row=[p.substring(0,25),fd?allData[fd][p].unit:'',fd?(allData[fd][p].range||'').substring(0,13):''];
     dates.forEach(d=>{const v=allData[d]?.[p];row.push(v?v.value+(v.status==='high'?' H':v.status==='low'?' L':''):'—');});
     row.forEach((cell,ci)=>{
@@ -720,37 +766,58 @@ function exportPDF(){
       doc.text(String(cell),x,y);x+=cW[ci];
     });y+=6.5;
   });
-  doc.save(`${name.replace(/ /g,'_')}_BloodReports.pdf`);toast('📄 PDF downloaded!');
+  doc.save(`${name.replace(/ /g,'_')}_BloodReports.pdf`);
+  toast('📄 PDF downloaded!');
 }
+
 function exportJPEG(){
   const dates=Object.keys(allData).sort(),params=getAllParams();
   if(!params.length){toast('No data to export');return;}
   const name=getName(),ag=getAG();
   const canvas=document.createElement('canvas');
   const cW=155,uW=52,rW=78,dW=98,rH=30,hH=90,pad=20;
-  canvas.width=pad*2+cW+uW+rW+dW*dates.length; canvas.height=hH+rH*(params.length+1)+pad;
+  canvas.width=pad*2+cW+uW+rW+dW*dates.length;
+  canvas.height=hH+rH*(params.length+1)+pad;
   const ctx=canvas.getContext('2d');
   ctx.fillStyle='#f4f7f5';ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle='#0f6e56';ctx.fillRect(0,0,canvas.width,58);
   ctx.fillStyle='#fff';ctx.font='bold 20px -apple-system,sans-serif';ctx.fillText('🩸 BloodTrack',pad,32);
-  ctx.font='12px -apple-system,sans-serif';ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillText(name+(ag?'  ·  '+ag:''),pad,50);
-  ctx.font='11px sans-serif';ctx.fillStyle='rgba(255,255,255,.6)';ctx.fillText('Generated: '+new Date().toLocaleDateString('en-IN'),pad,64);
-  const sy=hH;ctx.fillStyle='#e8f0ec';ctx.fillRect(0,sy,canvas.width,rH);
+  ctx.font='12px -apple-system,sans-serif';ctx.fillStyle='rgba(255,255,255,.85)';
+  ctx.fillText(name+(ag?'  ·  '+ag:''),pad,50);
+  ctx.font='11px sans-serif';ctx.fillStyle='rgba(255,255,255,.6)';
+  ctx.fillText('Generated: '+new Date().toLocaleDateString('en-IN'),pad,64);
+  const sy=hH;
+  ctx.fillStyle='#e8f0ec';ctx.fillRect(0,sy,canvas.width,rH);
   ctx.font='bold 11px sans-serif';ctx.fillStyle='#5a7a6a';
-  ctx.fillText('Parameter',pad,sy+19);ctx.fillText('Unit',pad+cW,sy+19);ctx.fillText('Range',pad+cW+uW,sy+19);
+  ctx.fillText('Parameter',pad,sy+19);ctx.fillText('Unit',pad+cW,sy+19);
+  ctx.fillText('Range',pad+cW+uW,sy+19);
   dates.forEach((d,i)=>ctx.fillText(d,pad+cW+uW+rW+i*dW,sy+19));
   params.forEach((p,ri)=>{
-    const y=sy+rH*(ri+1);ctx.fillStyle=ri%2===0?'#fff':'#f4f7f5';ctx.fillRect(0,y,canvas.width,rH);
+    const y=sy+rH*(ri+1);
+    ctx.fillStyle=ri%2===0?'#fff':'#f4f7f5';ctx.fillRect(0,y,canvas.width,rH);
     ctx.font='500 11px sans-serif';ctx.fillStyle='#1a2e25';ctx.fillText(p.substring(0,22),pad,y+19);
-    const fd=dates.find(d=>allData[d]?.[p]);ctx.font='11px sans-serif';ctx.fillStyle='#5a7a6a';
-    if(fd){ctx.fillText(allData[fd][p].unit||'',pad+cW,y+19);ctx.fillText((allData[fd][p].range||'').substring(0,11),pad+cW+uW,y+19);}
-    dates.forEach((d,ci)=>{const v=allData[d]?.[p],bx=pad+cW+uW+rW+ci*dW;
-      if(v){ctx.fillStyle=v.status==='high'?'#e24b4a':v.status==='low'?'#185fa5':'#3b6d11';ctx.font='bold 11px sans-serif';ctx.fillText(v.value+(v.status==='high'?' ↑':v.status==='low'?' ↓':''),bx,y+19);}
-      else{ctx.fillStyle='#c8d5ce';ctx.font='11px sans-serif';ctx.fillText('—',bx,y+19);}
+    const fd=dates.find(d=>allData[d]?.[p]);
+    ctx.font='11px sans-serif';ctx.fillStyle='#5a7a6a';
+    if(fd){
+      ctx.fillText(allData[fd][p].unit||'',pad+cW,y+19);
+      ctx.fillText((allData[fd][p].range||'').substring(0,11),pad+cW+uW,y+19);
+    }
+    dates.forEach((d,ci)=>{
+      const v=allData[d]?.[p],bx=pad+cW+uW+rW+ci*dW;
+      if(v){
+        ctx.fillStyle=v.status==='high'?'#e24b4a':v.status==='low'?'#185fa5':'#3b6d11';
+        ctx.font='bold 11px sans-serif';
+        ctx.fillText(v.value+(v.status==='high'?' ↑':v.status==='low'?' ↓':''),bx,y+19);
+      }else{
+        ctx.fillStyle='#c8d5ce';ctx.font='11px sans-serif';ctx.fillText('—',bx,y+19);
+      }
     });
   });
-  const link=document.createElement('a');link.download=`${name.replace(/ /g,'_')}_BloodReports.jpeg`;
-  link.href=canvas.toDataURL('image/jpeg',.93);link.click();toast('🖼️ Image saved!');
+  const link=document.createElement('a');
+  link.download=`${name.replace(/ /g,'_')}_BloodReports.jpeg`;
+  link.href=canvas.toDataURL('image/jpeg',.93);
+  link.click();
+  toast('🖼️ Image saved!');
 }
 
 init();
