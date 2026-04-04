@@ -588,12 +588,7 @@ function extractLabParams(lines, fullText){
   const params=[], seen=new Set();
 
   /* Lines to always skip */
-  const SKIP_RX = /^(test\s*name|result|bio\.?\s*ref|unit|method|investigation|parameter|
-    differential|absolute|leucocyte|count\s*\(|peripheral|blood\s*smear|rbc:-|wbc:-|platelet:-|
-    end\s*of\s*report|reports\s*to\s*follow|nabl|accredited|registered|corporate|please\s*check|
-    this\s*test\s*has|ip\/op|report\s*status|client|doctor|mobile|address|uhid|barcode|
-    specimen|collected|reported|ref\s*doctor|client\s*code|client\s*name|client\s*add|
-    good\s*health|laboratory|diagnostics\s*limited)/ix;
+  const SKIP_RX = /^(test\s*name|result|bio\.?\s*ref|unit|method|investigation|parameter|differential|absolute|leucocyte|peripheral|blood\s*smear|rbc:-|wbc:-|platelet:-|end\s*of\s*report|reports\s*to\s*follow|nabl|accredited|registered|corporate|please\s*check|this\s*test\s*has|ip\/op|report\s*status|client|doctor|mobile|address|uhid|barcode|specimen|collected|reported|ref\s*doctor|client\s*code|client\s*name|client\s*add|good\s*health|laboratory|diagnostics\s*limited)/i;
 
   /* A line is a test row if it contains a standalone number (the result) */
   const NUM_RX = /\b(\d{1,7}(?:\.\d{1,4})?)\s*(H|L|N)?\b/;
