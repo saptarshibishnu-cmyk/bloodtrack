@@ -484,7 +484,8 @@ async function analyzeAll(){
     }catch(err){
       item.status='error';
       console.error(err);
-      toast('⚠️ Report '+(i+1)+': '+err.message, 8000);
+      const errMsg = err && err.message ? err.message : String(err);
+      toast('⚠️ Report '+(i+1)+': '+errMsg, 10000);
     }
     renderQueue();
   }
@@ -500,74 +501,99 @@ async function analyzeAll(){
 
 /* ── CLAUDE AI VIA PUTER ── */
 async function analyzeWithClaude(dataUrl){
-  const prompt=`You are analyzing a blood test report image from an Indian laboratory (such as Lupin Diagnostics, SRL, Thyrocare, Dr Lal PathLabs, Metropolis etc.).
 
-Extract the following and return ONLY valid JSON — no markdown, no explanation:
+  const prompt = `You are analyzing a blood test report image from an Indian laboratory.
+Extract ALL information and return ONLY valid JSON with no markdown fences:
 {
   "patient_name": "full patient name or null",
-  "patient_age": "age as string e.g. 58 yrs or null",
+  "patient_age": "age string or null",
   "patient_gender": "Male or Female or null",
-  "report_date": "sample collection date in YYYY-MM-DD format or null",
+  "report_date": "collection date YYYY-MM-DD or null",
   "lab_name": "laboratory name or null",
   "parameters": [
-    {
-      "name": "exact test name from report",
-      "value": "numeric result as string",
-      "unit": "unit of measurement",
-      "range": "reference range e.g. 12-15",
-      "status": "normal or high or low"
-    }
+    {"name":"test name","value":"number","unit":"unit","range":"ref range","status":"normal or high or low"}
   ]
 }
+Extract every test result. Use H/L flags for status. Use collection date not report date.`;
 
-Rules:
-- Extract EVERY test result row from the test table
-- For status: use H/High flag if shown, or compare value to reference range
-- report_date: use Collection/Sample date, NOT report date
-- Ignore: doctor info, lab address, barcode, client code, footer text
-- patient_name: from Patient Information section only`;
+  // Try every known Puter vision call pattern
+  let response;
+  let lastErr = '';
 
-  // Correct Puter API syntax: puter.ai.chat(prompt, mediaFile, options)
-  // The image dataUrl is passed as second argument directly
-  const response = await puter.ai.chat(prompt, dataUrl, false, {
-    model: 'claude-opus-4-5'
-  });
+  // Pattern 1: chat(prompt, dataUrl, testMode, options)
+  try {
+    response = await puter.ai.chat(prompt, dataUrl, false, { model: 'claude-opus-4-5' });
+    if (response) { console.log('Pattern 1 worked'); }
+  } catch(e) { lastErr = 'P1:' + e.message; response = null; }
 
-  // Per Puter docs, response is a ChatResponse object
-  // response.message.content is an array of content blocks
-  // Each block has a .text property
+  // Pattern 2: chat(prompt, dataUrl, options) — no testMode
+  if (!response) {
+    try {
+      response = await puter.ai.chat(prompt, dataUrl, { model: 'claude-opus-4-5' });
+      if (response) { console.log('Pattern 2 worked'); }
+    } catch(e) { lastErr += ' P2:' + e.message; response = null; }
+  }
+
+  // Pattern 3: messages array with image_url
+  if (!response) {
+    try {
+      response = await puter.ai.chat([
+        { role: 'user', content: [
+          { type: 'image_url', image_url: { url: dataUrl } },
+          { type: 'text', text: prompt }
+        ]}
+      ], false, { model: 'claude-opus-4-5' });
+      if (response) { console.log('Pattern 3 worked'); }
+    } catch(e) { lastErr += ' P3:' + e.message; response = null; }
+  }
+
+  // Pattern 4: gpt-4o as fallback vision model
+  if (!response) {
+    try {
+      response = await puter.ai.chat(prompt, dataUrl, false, { model: 'gpt-4o' });
+      if (response) { console.log('Pattern 4 gpt-4o worked'); }
+    } catch(e) { lastErr += ' P4:' + e.message; response = null; }
+  }
+
+  if (!response) {
+    throw new Error('All AI patterns failed: ' + lastErr);
+  }
+
+  console.log('Response:', JSON.stringify(response).substring(0, 400));
+
+  // Extract text from response
   let text = '';
   try {
     if (typeof response === 'string') {
       text = response;
-    } else if (response && response.message && response.message.content) {
+    } else if (response.message && response.message.content) {
       const c = response.message.content;
-      if (Array.isArray(c)) {
-        text = c.map(function(b){ return (b && b.text) ? b.text : ''; }).join('');
-      } else {
-        text = String(c);
-      }
-    } else if (response && response.toString) {
-      text = response.toString();
+      text = Array.isArray(c) ? c.map(b => b.text || '').join('') : String(c);
+    } else if (response.content) {
+      const c = response.content;
+      text = Array.isArray(c) ? c.map(b => b.text || '').join('') : String(c);
+    } else if (response.text) {
+      text = String(response.text);
+    } else {
+      text = JSON.stringify(response);
     }
-  } catch(e) {
-    text = '';
+  } catch(e) { text = String(response); }
+
+  console.log('Text extracted:', text.substring(0, 300));
+
+  if (!text || text.trim().length < 5) {
+    throw new Error('Empty AI response. Check console for details.');
   }
 
-  if (!text || text.length < 10) {
-    throw new Error('Empty response from AI. Please try again.');
+  const j1 = text.indexOf('{');
+  const j2 = text.lastIndexOf('}');
+  if (j1 === -1 || j2 <= j1) {
+    throw new Error('No JSON found. Got: ' + text.substring(0, 100));
   }
 
-  // Extract JSON from the response text
-  const jsonStart = text.indexOf('{');
-  const jsonEnd = text.lastIndexOf('}');
-  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
-    throw new Error('Could not parse AI response. Try again or retake the photo more clearly.');
-  }
-
-  const parsed = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
+  const parsed = JSON.parse(text.substring(j1, j2 + 1));
   if (!parsed.parameters || !parsed.parameters.length) {
-    throw new Error('No test values found. Ensure the full test table is visible in the photo.');
+    throw new Error('No parameters in response. Ensure full report is visible.');
   }
 
   return parsed;
