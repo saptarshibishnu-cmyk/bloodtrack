@@ -534,20 +534,33 @@ Rules:
     image: dataUrl
   });
 
-  // Parse the JSON response
+  // Safely extract text from any Puter response format
   let text='';
-  if(typeof response==='string') text=response;
-  else if(response?.message?.content) text=response.message.content;
-  else if(response?.content) text=response.content;
-  else text=JSON.stringify(response);
+  try{
+    if(typeof response==='string'){
+      text=response;
+    } else if(response && response.message && response.message.content){
+      const c=response.message.content;
+      text=Array.isArray(c)?c.map(function(b){return(b&&b.text)||'';}).join(''):String(c);
+    } else if(response && response.content){
+      const c=response.content;
+      text=Array.isArray(c)?c.map(function(b){return(b&&b.text)||'';}).join(''):String(c);
+    } else if(response && response.text){
+      text=String(response.text);
+    } else {
+      text=JSON.stringify(response);
+    }
+  } catch(e){ text=String(response||''); }
 
-  // Extract JSON from response
-  const match=text.match(/\{[\s\S]*\}/);
-  if(!match) throw new Error('Could not parse AI response. Please try again.');
+  // Extract the JSON object from anywhere in the text
+  const jsonStart=text.indexOf('{');
+  const jsonEnd=text.lastIndexOf('}');
+  if(jsonStart===-1||jsonEnd===-1||jsonEnd<=jsonStart)
+    throw new Error('Could not parse AI response. Try again or retake the photo more clearly.');
 
-  const parsed=JSON.parse(match[0]);
+  const parsed=JSON.parse(text.substring(jsonStart, jsonEnd+1));
   if(!parsed.parameters||!parsed.parameters.length)
-    throw new Error('No test values found in report. Ensure the full test table is visible.');
+    throw new Error('No test values found. Ensure the full test table is visible in the photo.');
 
   return parsed;
 }
