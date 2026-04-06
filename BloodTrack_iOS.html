@@ -8,7 +8,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BloodTrack">
 <title>BloodTrack</title>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+<!--
+  Uses Puter.js for FREE Claude AI vision — no API key needed.
+  Sign in with Google at puter.com once, then it works.
+-->
+<script src="https://js.puter.com/v2/"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -18,6 +22,7 @@
   --red:#e24b4a;--red-l:#fcebeb;
   --blue:#185fa5;--blue-l:#e6f1fb;
   --green:#3b6d11;--green-l:#eaf3de;
+  --amber-l:#fffbeb;
   --bg:#f4f7f5;--card:#fff;
   --border:#dde5e0;--border2:#c8d5ce;
   --text:#1a2e25;--muted:#5a7a6a;--hint:#8aaa98
@@ -36,6 +41,16 @@ body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:v
 .screen{display:none;padding:14px;padding-bottom:max(24px,env(safe-area-inset-bottom));animation:fi .2s ease}
 .screen.active{display:block}
 @keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* SETUP CARD */
+.setup-card{background:#fffbeb;border:1px solid #fcd34d;border-radius:14px;padding:16px;margin-bottom:14px}
+.setup-title{font-size:14px;font-weight:700;color:#92400e;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.setup-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
+.setup-step:last-child{margin-bottom:0}
+.snum{width:22px;height:22px;border-radius:50%;background:var(--teal);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.stxt{font-size:13px;color:#78350f;line-height:1.6}
+.stxt a{color:var(--teal);font-weight:700;text-decoration:none}
+
 .info-card{background:var(--teal-l);border:1px solid #9fe1cb;border-radius:14px;padding:14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start}
 .info-icon{font-size:20px;flex-shrink:0}
 .info-title{font-size:13px;font-weight:700;color:var(--teal-d);margin-bottom:3px}
@@ -121,7 +136,7 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
   </div>
   <div>
     <div class="app-bar-title">BloodTrack</div>
-    <div class="app-bar-sub">Smart Indian lab report reader</div>
+    <div class="app-bar-sub">Claude AI vision · Free via Puter</div>
   </div>
   <div class="free-pill">FREE</div>
 </div>
@@ -135,11 +150,32 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 <div class="scroll-area">
   <div id="tab-upload" class="screen active">
 
-    <div class="info-card">
-      <div class="info-icon">✨</div>
+    <!-- Shown until Puter is signed in -->
+    <div class="setup-card" id="puter-setup">
+      <div class="setup-title">⚡ One-time free setup</div>
+      <div class="setup-step">
+        <div class="snum">1</div>
+        <div class="stxt">Go to <a href="https://puter.com" target="_blank">puter.com</a> and create a free account — sign up with Google</div>
+      </div>
+      <div class="setup-step">
+        <div class="snum">2</div>
+        <div class="stxt">Come back here and tap <strong>"Sign in to Puter"</strong> below</div>
+      </div>
+      <div class="setup-step">
+        <div class="snum">3</div>
+        <div class="stxt">Done! Claude AI will read your reports perfectly — no more garbled text</div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-p" onclick="puterSignIn()">Sign in to Puter</button>
+        <div id="puter-status" style="font-size:12px;color:var(--muted);align-self:center"></div>
+      </div>
+    </div>
+
+    <div class="info-card" id="puter-ok" style="display:none">
+      <div class="info-icon">✅</div>
       <div>
-        <div class="info-title">Tuned for Indian lab reports</div>
-        <div class="info-body">Reads Lupin, SRL, Thyrocare, Metropolis, Dr Lal and similar formats. Extracts patient name, date, and all test values automatically.</div>
+        <div class="info-title">Connected — Claude AI ready</div>
+        <div class="info-body">Claude vision will accurately read your blood reports including patient name, date, and all test values.</div>
       </div>
     </div>
 
@@ -174,16 +210,16 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
       <div class="btn-row">
         <button class="btn btn-p" id="analyze-btn" onclick="analyzeAll()">
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 11L5 7l4 4L14 2"/></svg>
-          Read Reports
+          Analyze Reports
         </button>
         <button class="btn btn-sm" onclick="clearQueue()">Clear</button>
       </div>
     </div>
 
     <div id="prog-wrap" style="display:none" class="prog-wrap">
-      <div class="prog-label" id="prog-label">Preparing OCR…</div>
-      <div class="prog-sub" id="prog-sub">Loading engine</div>
-      <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:2%"></div></div>
+      <div class="prog-label" id="prog-label">Analyzing…</div>
+      <div class="prog-sub" id="prog-sub">Claude AI is reading the report</div>
+      <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:5%"></div></div>
     </div>
 
     <div id="recent-cards"></div>
@@ -200,7 +236,7 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
       <div class="empty">
         <div class="empty-ico">🩸</div>
         <div class="empty-title">No reports yet</div>
-        <div style="font-size:13px">Upload and read blood test photos first</div>
+        <div style="font-size:13px">Upload and analyze blood test photos first</div>
       </div>
     </div>
   </div>
@@ -258,45 +294,47 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 <div class="toast" id="toast"></div>
 
 <script>
-/* ═══════════════════════════════════
-   STATE
-═══════════════════════════════════ */
+/* ── STATE ── */
 let queue=[], allData={}, patientInfo={name:'',age:'',gender:''};
-let pendingDateResolve=null, tWorker=null;
+let pendingDateResolve=null;
 
-/* ═══════════════════════════════════
-   INIT
-═══════════════════════════════════ */
+/* ── INIT ── */
 function init(){
   try{const p=localStorage.getItem('bt_patient');if(p){patientInfo=JSON.parse(p);syncPatientUI();}}catch(e){}
   try{const d=localStorage.getItem('bt_data');if(d){allData=JSON.parse(d);}}catch(e){}
+  // Check if already signed in to Puter
+  checkPuterAuth();
 }
 
-/* ═══════════════════════════════════
-   TESSERACT WORKER
-═══════════════════════════════════ */
-async function getWorker(onProg){
-  if(tWorker) return tWorker;
-  tWorker = await Tesseract.createWorker('eng', 1, {
-    logger: m=>{
-      if(!onProg) return;
-      const p=Math.round((m.progress||0)*100);
-      if(m.status==='loading tesseract core')
-        onProg('Loading OCR engine…','First use — please wait', Math.max(5,p*0.3));
-      else if(m.status==='loading language traineddata')
-        onProg('Loading language data…','Downloading English pack', 30+p*0.35);
-      else if(m.status==='initializing api')
-        onProg('Initialising…','Almost ready', 70);
-      else if(m.status==='recognizing text')
-        onProg('Reading text…','Scanning report', 72+p*0.25);
+/* ── PUTER AUTH ── */
+async function checkPuterAuth(){
+  try{
+    const isSignedIn = puter.auth.isSignedIn();
+    if(isSignedIn){
+      showPuterOk();
     }
-  });
-  return tWorker;
+  }catch(e){}
 }
 
-/* ═══════════════════════════════════
-   UI
-═══════════════════════════════════ */
+async function puterSignIn(){
+  const statusEl=document.getElementById('puter-status');
+  statusEl.textContent='Opening sign-in…';
+  try{
+    await puter.auth.signIn();
+    showPuterOk();
+    toast('✅ Signed in! You can now analyze reports.');
+  }catch(e){
+    statusEl.textContent='Sign-in failed. Try again.';
+    toast('Sign-in failed: '+e.message, 5000);
+  }
+}
+
+function showPuterOk(){
+  document.getElementById('puter-setup').style.display='none';
+  document.getElementById('puter-ok').style.display='flex';
+}
+
+/* ── TABS ── */
 function showTab(t){
   document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['upload','table','export'][i]===t));
   document.querySelectorAll('.screen').forEach(el=>el.classList.remove('active'));
@@ -304,11 +342,15 @@ function showTab(t){
   if(t==='table') renderTable();
   if(t==='export') renderExportSummary();
 }
+
+/* ── TOAST ── */
 function toast(msg,dur=3500){
   const el=document.getElementById('toast');
   el.textContent=msg; el.classList.add('show');
   clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),dur);
 }
+
+/* ── PATIENT ── */
 function initials(n){return(n||'?').trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().substring(0,2);}
 function syncPatientUI(){
   document.getElementById('patient-name').value=patientInfo.name||'';
@@ -328,20 +370,8 @@ function syncPatient(){
   try{localStorage.setItem('bt_patient',JSON.stringify(patientInfo));}catch(e){}
   updateBanner();
 }
-function setProgress(label,sub,pct){
-  document.getElementById('prog-wrap').style.display='';
-  document.getElementById('prog-label').textContent=label;
-  document.getElementById('prog-sub').textContent=sub;
-  document.getElementById('prog-fill').style.width=Math.min(Math.round(pct),98)+'%';
-}
-function hideProgress(){
-  document.getElementById('prog-fill').style.width='100%';
-  setTimeout(()=>document.getElementById('prog-wrap').style.display='none',700);
-}
 
-/* ═══════════════════════════════════
-   FILE HANDLING
-═══════════════════════════════════ */
+/* ── FILE HANDLING ── */
 function handleFiles(input){
   if(!input.files||!input.files.length) return;
   Array.from(input.files).forEach(file=>{
@@ -378,9 +408,19 @@ function clearQueue(){
   document.getElementById('recent-cards').innerHTML='';
 }
 
-/* ═══════════════════════════════════
-   DATE MODAL
-═══════════════════════════════════ */
+/* ── PROGRESS ── */
+function setProgress(label,sub,pct){
+  document.getElementById('prog-wrap').style.display='';
+  document.getElementById('prog-label').textContent=label;
+  document.getElementById('prog-sub').textContent=sub;
+  document.getElementById('prog-fill').style.width=Math.min(Math.round(pct),98)+'%';
+}
+function hideProgress(){
+  document.getElementById('prog-fill').style.width='100%';
+  setTimeout(()=>document.getElementById('prog-wrap').style.display='none',700);
+}
+
+/* ── DATE MODAL ── */
 function askDate(detected,idx){
   return new Promise(resolve=>{
     pendingDateResolve=resolve;
@@ -397,82 +437,52 @@ function confirmDate(){
   if(pendingDateResolve){pendingDateResolve(v);pendingDateResolve=null;}
 }
 
-/* ═══════════════════════════════════
-   IMAGE PREP
-═══════════════════════════════════ */
-function prepareImage(dataUrl){
-  return new Promise((resolve,reject)=>{
-    const img=new window.Image();
-    img.onload=()=>{
-      const MAX=2400;
-      const s=Math.min(MAX/img.width, MAX/img.height, 3.0);
-      const w=Math.round(img.width*s), h=Math.round(img.height*s);
-      const c=document.createElement('canvas');
-      c.width=w; c.height=h;
-      const ctx=c.getContext('2d');
-      ctx.fillStyle='#ffffff';
-      ctx.fillRect(0,0,w,h);
-      // Sharpen for OCR — higher contrast helps column detection
-      ctx.filter='grayscale(1) contrast(1.6) brightness(1.05)';
-      ctx.drawImage(img,0,0,w,h);
-      resolve(c);
-    };
-    img.onerror=()=>reject(new Error('Image load failed'));
-    img.src=dataUrl;
-  });
-}
-
-/* ═══════════════════════════════════
-   MAIN ANALYZE LOOP
-═══════════════════════════════════ */
+/* ── MAIN ANALYZE LOOP ── */
 async function analyzeAll(){
+  if(!puter.auth.isSignedIn()){
+    toast('Please sign in to Puter first');
+    return;
+  }
   const pending=queue.filter(q=>q.status==='pending');
   if(!pending.length){toast('No pending reports');return;}
   const btn=document.getElementById('analyze-btn');
-  btn.innerHTML=`<span class="spin"></span> Reading…`; btn.disabled=true;
+  btn.innerHTML=`<span class="spin"></span> Analyzing…`; btn.disabled=true;
 
   for(let i=0;i<pending.length;i++){
     const item=pending[i];
     item.status='analyzing'; renderQueue();
     try{
-      setProgress(`Report ${i+1} of ${pending.length}`,'Preparing image…',3);
-      const canvas=await prepareImage(item.dataUrl);
+      setProgress(`Report ${i+1} of ${pending.length}`,'Claude AI is reading the report…',20);
 
-      const worker=await getWorker((lbl,sub,pct)=>setProgress(`Report ${i+1} of ${pending.length}`,sub,pct));
-      const {data}=await worker.recognize(canvas);
-      const rawText=(data&&data.text)?data.text:'';
+      const result=await analyzeWithClaude(item.dataUrl);
 
-      if(!rawText||rawText.trim().length<20)
-        throw new Error('Could not read enough text. Ensure the full report is visible and well-lit.');
+      setProgress(`Report ${i+1} of ${pending.length}`,'Processing results…',90);
 
-      setProgress(`Report ${i+1} of ${pending.length}`,'Extracting values…',97);
-      const parsed=parseIndianLabReport(rawText);
-      const date=await askDate(parsed.report_date, i);
-
-      if(parsed.patient_name&&!patientInfo.name){
-        patientInfo.name=parsed.patient_name;
-        patientInfo.age=parsed.patient_age||'';
-        patientInfo.gender=parsed.patient_gender||'';
+      if(result.patient_name&&!patientInfo.name){
+        patientInfo.name=result.patient_name;
+        patientInfo.age=result.patient_age||'';
+        patientInfo.gender=result.patient_gender||'';
         try{localStorage.setItem('bt_patient',JSON.stringify(patientInfo));}catch(e){}
         syncPatientUI();
         document.getElementById('auto-badge').style.display='';
       }
 
+      const date=await askDate(result.report_date, i);
+
       if(!allData[date]) allData[date]={};
-      (parsed.parameters||[]).forEach(p=>{
+      (result.parameters||[]).forEach(p=>{
         if(p.name&&p.value)
           allData[date][p.name]={value:p.value,unit:p.unit||'',range:p.range||'',status:p.status||'normal'};
       });
 
       item.detectedDate=date;
-      item.detectedName=parsed.patient_name;
-      item.labName=parsed.lab_name;
-      item.extracted=(parsed.parameters||[]).length;
+      item.detectedName=result.patient_name;
+      item.labName=result.lab_name;
+      item.extracted=(result.parameters||[]).length;
       item.status='done';
 
     }catch(err){
       item.status='error';
-      if(tWorker){try{await tWorker.terminate();}catch(e){} tWorker=null;}
       console.error(err);
       toast('⚠️ Report '+(i+1)+': '+err.message, 8000);
     }
@@ -480,303 +490,69 @@ async function analyzeAll(){
   }
 
   hideProgress();
-  btn.innerHTML=`<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 11L5 7l4 4L14 2"/></svg> Read Reports`;
+  btn.innerHTML=`<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 11L5 7l4 4L14 2"/></svg> Analyze Reports`;
   btn.disabled=false;
   try{localStorage.setItem('bt_data',JSON.stringify(allData));}catch(e){}
   updateBanner(); renderRecentCards();
   const done=pending.filter(q=>q.status==='done').length;
-  if(done) toast(`✅ ${done} report${done>1?'s':''} read! Check Reports tab.`);
+  if(done) toast(`✅ ${done} report${done>1?'s':''} analyzed! Check Reports tab.`);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   INDIAN LAB REPORT PARSER
-   Tuned for: Lupin, SRL, Thyrocare, Metropolis, Dr Lal, NABL labs
-   
-   Report structure (from the sample image):
-   - Patient info block: "Name : Ms.RAOSONA BEGAM"
-   - Date line: "Collected : 24/Mar/2026 15:52"
-   - Test table rows: "Hemoglobin (Hb)    11.20 L    12-15    g/dL    Spectrophotometry"
-   - Column order: Test Name | Result | Bio.Ref.Range | Unit | Method
-   - Status flags: H = high, L = low (appear right after the numeric result)
-═══════════════════════════════════════════════════════════════ */
-function parseIndianLabReport(text){
-  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l.length>0);
+/* ── CLAUDE AI VIA PUTER ── */
+async function analyzeWithClaude(dataUrl){
+  const prompt=`You are analyzing a blood test report image from an Indian laboratory (such as Lupin Diagnostics, SRL, Thyrocare, Dr Lal PathLabs, Metropolis etc.).
 
-  /* ── Patient Name ──
-     Looks for: "Name : Ms.RAOSONA BEGAM" or "Name: JOHN DOE" */
-  let patient_name=null;
-  const nameM = text.match(/(?:^|\n)\s*Name\s*:\s*(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*([A-Z][A-Z\s\.]{2,40})/m);
-  if(nameM){
-    patient_name = nameM[1].trim().replace(/\s+/g,' ');
-    // Clean up: remove trailing garbage like addresses
-    patient_name = patient_name.replace(/\s+(BOLPUR|KOLKATA|MUMBAI|DELHI|BENGAL|ROAD|STREET|NAGAR|PARA|PUR).*$/i,'').trim();
-  }
-
-  /* ── Age & Gender ──
-     Looks for: "Age/Gender : 58 Y 0 M 0 D /Female" or "Age: 45 Yrs Sex: Male" */
-  let patient_age=null, patient_gender=null;
-  const agGenderM = text.match(/Age\s*[\/\-]?\s*Gender\s*:\s*(\d{1,3})\s*Y.*?\/(Male|Female)/i) ||
-                    text.match(/Age\s*:\s*(\d{1,3})\s*(?:Yrs?|Years?).*?(?:Sex|Gender)\s*:\s*(Male|Female)/i) ||
-                    text.match(/(\d{1,3})\s*(?:Yrs?|Years?)\s*[\/|,]\s*(Male|Female)/i);
-  if(agGenderM){
-    patient_age = agGenderM[1]+' yrs';
-    patient_gender = /female/i.test(agGenderM[2])?'Female':'Male';
-  } else {
-    const ageOnly=text.match(/Age\s*:\s*(\d{1,3})\s*(?:Yrs?|Years?)/i);
-    if(ageOnly) patient_age=ageOnly[1]+' yrs';
-    if(/\bFemale\b/i.test(text)) patient_gender='Female';
-    else if(/\bMale\b/i.test(text)) patient_gender='Male';
-  }
-
-  /* ── Date ──
-     Looks for: "Collected : 24/Mar/2026" or "Collection Date: 24-03-2026"
-     Priority: Collected > Collection Date > Sample Date > Report Date */
-  let report_date=null;
-  const datePatterns=[
-    /(?:Collected|Collection\s*Date|Sample\s*Date)\s*:\s*(\d{1,2}[\/\-\s]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\/\-\s]+\d{4})/i,
-    /(?:Collected|Collection\s*Date|Sample\s*Date)\s*:\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4})/i,
-    /(?:Report\s*Date|Reported)\s*:\s*(\d{1,2}[\/\-\s]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\/\-\s]+\d{4})/i,
-    /(?:Report\s*Date|Reported)\s*:\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4})/i,
-    /(\d{1,2}[\/\-](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[\/\-]\d{4})/i,
-    /(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4})/
-  ];
-  for(const rx of datePatterns){
-    const m=text.match(rx);
-    if(m){report_date=toISO(m[1]);if(report_date)break;}
-  }
-
-  /* ── Lab Name ──
-     Look for known lab brands first, then first meaningful line */
-  let lab_name=null;
-  const knownLabs=['Lupin Diagnostics','SRL Diagnostics','Thyrocare','Metropolis','Dr Lal PathLabs',
-                   'Apollo Diagnostics','Medanta','Fortis','AIIMS','Narayana','Max Healthcare'];
-  for(const lab of knownLabs){
-    if(text.toLowerCase().includes(lab.toLowerCase())){lab_name=lab;break;}
-  }
-  if(!lab_name){
-    for(const line of lines.slice(0,10)){
-      if(line.length>=5&&line.length<=60&&/[A-Za-z]{4}/.test(line)
-         &&!/^(name|age|sex|date|ref|sample|patient|mobile|address|uhid|uid)/i.test(line)
-         &&!/^\d/.test(line)){
-        lab_name=line.replace(/[^A-Za-z\s]/g,'').trim();
-        if(lab_name.length>4) break;
-      }
+Extract the following and return ONLY valid JSON — no markdown, no explanation:
+{
+  "patient_name": "full patient name or null",
+  "patient_age": "age as string e.g. 58 yrs or null",
+  "patient_gender": "Male or Female or null",
+  "report_date": "sample collection date in YYYY-MM-DD format or null",
+  "lab_name": "laboratory name or null",
+  "parameters": [
+    {
+      "name": "exact test name from report",
+      "value": "numeric result as string",
+      "unit": "unit of measurement",
+      "range": "reference range e.g. 12-15",
+      "status": "normal or high or low"
     }
-  }
-
-  /* ── Parameters ── */
-  const parameters = extractLabParams(lines, text);
-
-  return {patient_name, patient_age, patient_gender, report_date, lab_name, parameters};
+  ]
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   PARAMETER EXTRACTION — Indian lab table format
-   
-   The key insight from the sample report:
-   Column layout:  TestName    |  Result [H/L]  |  RefRange  |  Unit  |  Method
-   
-   Strategy:
-   1. Find lines that contain a numeric result (possibly followed by H or L)
-   2. The test name is the text before the number
-   3. Reference range and unit follow the number
-   4. Skip header lines, section headers (bold text like "Hemoglobin (Hb)")
-      — wait, actually section headers ARE test names (Hb is a test)
-   5. Skip non-test lines: barcode, address, doctor info, footer text
-═══════════════════════════════════════════════════════════════ */
-function extractLabParams(lines, fullText){
-  const params=[], seen=new Set();
+Rules:
+- Extract EVERY test result row from the test table
+- For status: use H/High flag if shown, or compare value to reference range
+- report_date: use Collection/Sample date, NOT report date
+- Ignore: doctor info, lab address, barcode, client code, footer text
+- patient_name: from Patient Information section only`;
 
-  /* Lines to always skip */
-  const SKIP_RX = /^(test\s*name|result|bio\.?\s*ref|unit|method|investigation|parameter|differential|absolute|leucocyte|peripheral|blood\s*smear|rbc:-|wbc:-|platelet:-|end\s*of\s*report|reports\s*to\s*follow|nabl|accredited|registered|corporate|please\s*check|this\s*test\s*has|ip\/op|report\s*status|client|doctor|mobile|address|uhid|barcode|specimen|collected|reported|ref\s*doctor|client\s*code|client\s*name|client\s*add|good\s*health|laboratory|diagnostics\s*limited)/i;
+  // Use Puter's Claude claude-opus-4-5 API with vision
+  const response = await puter.ai.chat(prompt, {
+    model: 'claude-opus-4-5',
+    vision: true,
+    image: dataUrl
+  });
 
-  /* A line is a test row if it contains a standalone number (the result) */
-  const NUM_RX = /\b(\d{1,7}(?:\.\d{1,4})?)\s*(H|L|N)?\b/;
+  // Parse the JSON response
+  let text='';
+  if(typeof response==='string') text=response;
+  else if(response?.message?.content) text=response.message.content;
+  else if(response?.content) text=response.content;
+  else text=JSON.stringify(response);
 
-  for(let i=0;i<lines.length;i++){
-    const line=lines[i];
-    if(!line||line.length<3||line.length>200) continue;
-    if(SKIP_RX.test(line.trim())) continue;
+  // Extract JSON from response
+  const match=text.match(/\{[\s\S]*\}/);
+  if(!match) throw new Error('Could not parse AI response. Please try again.');
 
-    /* Must contain a number to be a test result line */
-    const numM=line.match(NUM_RX);
-    if(!numM) continue;
+  const parsed=JSON.parse(match[0]);
+  if(!parsed.parameters||!parsed.parameters.length)
+    throw new Error('No test values found in report. Ensure the full test table is visible.');
 
-    const rawNum=numM[1];
-    const numVal=parseFloat(rawNum);
-
-    /* Filter out obviously non-test numbers */
-    if(isNaN(numVal)) continue;
-    if(numVal>1000000) continue;               // barcode/phone numbers
-    if(/^\d{6,}$/.test(rawNum)) continue;      // long integer = not a result
-    if(/\d{2}:\d{2}/.test(line)) continue;    // time line
-    if(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(line)) continue; // date line
-    if(/(?:mobile|phone|tel|fax|pin|zip|barcode|uhid|code)\s*[:=]/i.test(line)) continue;
-
-    /* Extract the test name = everything before the number */
-    const numIndex=line.indexOf(rawNum);
-    let rawName=line.substring(0,numIndex).trim();
-
-    /* Clean the name */
-    rawName=rawName
-      .replace(/\s*\(?\s*Hb\s*\)?\s*$/, ' (Hb)')  // keep abbreviations
-      .replace(/[:.\-]+$/, '')
-      .replace(/\s+/g,' ')
-      .trim();
-
-    if(!rawName||rawName.length<2||rawName.length>70) continue;
-    if(seen.has(rawName.toLowerCase())) continue;
-
-    /* Skip if name looks like garbage / address / non-test */
-    if(/^\d/.test(rawName)) continue;
-    if(/(?:page|ip|op|si\s*no|s\.no|sr\.no)/i.test(rawName)) continue;
-    if(!/[A-Za-z]{2}/.test(rawName)) continue;
-
-    /* Extract status (H/L after the number) */
-    const afterNum=line.substring(numIndex+rawNum.length);
-    const statusM=afterNum.match(/^\s*(H|L|N)\b/i);
-    const rawStatus=(statusM?statusM[1]:'').toUpperCase();
-
-    /* Extract reference range and unit from rest of line */
-    // Format: "  11.20 L    12-15    g/dL    Spectrophotometry"
-    // or:     "  3.92    3.8-4.8    Million/cu.mm    Impedance"
-    const restOfLine=afterNum.replace(/^\s*(H|L|N)\b/i,'').trim();
-    const {range, unit} = extractRangeUnit(restOfLine);
-
-    /* Determine status */
-    let status='normal';
-    if(rawStatus==='H') status='high';
-    else if(rawStatus==='L') status='low';
-    else if(range) status=calcStatus(numVal, range);
-
-    seen.add(rawName.toLowerCase());
-    params.push({name:rawName, value:rawNum, unit, range, status});
-  }
-
-  /* If very few params found, fall back to known-test scan */
-  if(params.length<3){
-    for(const t of knownIndianTests()){
-      if(seen.has(t.n.toLowerCase())) continue;
-      const rx=new RegExp('\\b'+t.n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
-                         +'[^\\n]{0,30}?(\\d+[.\\d]*)\\s*(H|L)?','im');
-      const m=fullText.match(rx);
-      if(m){
-        seen.add(t.n.toLowerCase());
-        const v=parseFloat(m[1]);
-        const st=(m[2]||'').toUpperCase();
-        params.push({
-          name:t.n, value:m[1], unit:t.u||'', range:t.r||'',
-          status: st==='H'?'high': st==='L'?'low': t.r?calcStatus(v,t.r):'normal'
-        });
-      }
-    }
-  }
-
-  return params;
+  return parsed;
 }
 
-/* Extract reference range and unit from the tail of a result line.
-   Examples:
-     "  12-15    g/dL    Spectrophotometry"  → range=12-15, unit=g/dL
-     "  3.8-4.8    Million/cu.mm"            → range=3.8-4.8, unit=Million/cu.mm
-     "  4000-10000    Cells/cu.mm"           → range=4000-10000, unit=Cells/cu.mm
-     "  150000-410000    per cu.mm"          → range=150000-410000, unit=per cu.mm
-*/
-function extractRangeUnit(tail){
-  let range='', unit='';
-  if(!tail) return {range,unit};
-
-  // Match reference range: digits - digits (with optional decimals)
-  const rangeM=tail.match(/(\d[\d.,]*\s*[-–]\s*\d[\d.,]*)/);
-  if(rangeM){
-    range=rangeM[1].replace(/\s/g,'').replace(',','');
-  }
-
-  // Match unit: comes after the range, is a word with letters
-  // Common units: g/dL, %, fL, pg, Cells/cu.mm, Million/cu.mm, per cu.mm, U/L, mg/dL, mEq/L
-  const unitM=tail.match(/(?:\d[\d.,]*\s*[-–]\s*\d[\d.,]*)\s+([A-Za-z%][A-Za-z0-9\/\.\s]{0,25}?)(?:\s{2,}|$)/);
-  if(unitM){
-    unit=unitM[1].trim();
-  } else {
-    // Try grabbing first word-like token that looks like a unit
-    const tok=tail.replace(/\d[\d.,]*\s*[-–]\s*\d[\d.,]*/,'').trim().split(/\s{2,}/)[0]||'';
-    if(/^[A-Za-z%]/.test(tok)&&tok.length<=25) unit=tok.trim();
-  }
-
-  // Clean unit
-  unit=unit.replace(/\s+/g,' ').trim();
-
-  return {range, unit};
-}
-
-function calcStatus(v,r){
-  const m=(r||'').replace(/\s/g,'').match(/^([\d.]+)[-–]([\d.]+)$/);
-  if(!m) return 'normal';
-  const lo=+m[1],hi=+m[2];
-  return isNaN(lo)||isNaN(hi)?'normal': v<lo?'low': v>hi?'high': 'normal';
-}
-
-/* ── ISO date conversion ── */
-function toISO(s){
-  if(!s) return null;
-  s=s.trim().replace(/\s+/g,'/');
-  // "24/Mar/2026" or "24-Mar-2026"
-  const mo={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
-            jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
-  let m=s.match(/^(\d{1,2})[\/\-]+([A-Za-z]{3})[a-z]*[\/\-]+(\d{4})$/i);
-  if(m&&mo[m[2].toLowerCase()])
-    return `${m[3]}-${mo[m[2].toLowerCase()]}-${m[1].padStart(2,'0')}`;
-  // "24/03/2026" or "03/24/2026"
-  m=s.match(/^(\d{1,2})[\/\-\.]+(\d{1,2})[\/\-\.]+(\d{4})$/);
-  if(m){ return +m[2]>12
-    ?`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`
-    :`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
-  // "24/03/26"
-  m=s.match(/^(\d{1,2})[\/\-\.]+(\d{1,2})[\/\-\.]+(\d{2})$/);
-  if(m){ const y=+m[3]>50?'19'+m[3]:'20'+m[3];
-    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
-  return null;
-}
-
-/* ── Known Indian test reference list (fallback only) ── */
-function knownIndianTests(){return[
-  {n:'Hemoglobin',u:'g/dL',r:'12.0-17.0'},{n:'Haemoglobin',u:'g/dL',r:'12.0-17.0'},
-  {n:'Red Blood Cell',u:'Million/cu.mm',r:'3.8-5.8'},
-  {n:'Packed Cell Volume',u:'%',r:'36-46'},
-  {n:'Mean Corpuscular Volume',u:'fL',r:'83-101'},
-  {n:'Mean Corpuscular Hemoglobin',u:'pg',r:'27-32'},
-  {n:'RDW-CV',u:'%',r:'11.6-14'},
-  {n:'Total Leucocyte Count',u:'Cells/cu.mm',r:'4000-10000'},
-  {n:'Neutrophils',u:'%',r:'40-80'},{n:'Lymphocytes',u:'%',r:'20-40'},
-  {n:'Monocytes',u:'%',r:'2-10'},{n:'Eosinophils',u:'%',r:'1-6'},
-  {n:'Basophils',u:'%',r:'0-2'},
-  {n:'Platelet Count',u:'per cu.mm',r:'150000-410000'},
-  {n:'Mean Platelet Volume',u:'fL',r:'7.4-12.0'},
-  {n:'HbA1c',u:'%',r:'4.0-5.6'},
-  {n:'Fasting Blood Glucose',u:'mg/dL',r:'70-100'},
-  {n:'Serum Creatinine',u:'mg/dL',r:'0.6-1.2'},
-  {n:'Blood Urea',u:'mg/dL',r:'17-43'},
-  {n:'Uric Acid',u:'mg/dL',r:'3.5-7.2'},
-  {n:'Total Cholesterol',u:'mg/dL',r:'0-200'},
-  {n:'Triglycerides',u:'mg/dL',r:'0-150'},
-  {n:'HDL Cholesterol',u:'mg/dL',r:'40-60'},
-  {n:'LDL Cholesterol',u:'mg/dL',r:'0-100'},
-  {n:'SGOT',u:'U/L',r:'0-40'},{n:'SGPT',u:'U/L',r:'0-40'},
-  {n:'Alkaline Phosphatase',u:'U/L',r:'44-147'},
-  {n:'Total Bilirubin',u:'mg/dL',r:'0.2-1.2'},
-  {n:'Total Protein',u:'g/dL',r:'6.4-8.2'},
-  {n:'Serum Calcium',u:'mg/dL',r:'8.5-10.5'},
-  {n:'Serum Sodium',u:'mEq/L',r:'136-145'},
-  {n:'Serum Potassium',u:'mEq/L',r:'3.5-5.0'},
-  {n:'TSH',u:'uIU/mL',r:'0.4-4.0'},
-  {n:'Vitamin D',u:'ng/mL',r:'30-100'},
-  {n:'Vitamin B12',u:'pg/mL',r:'200-900'},
-  {n:'Ferritin',u:'ng/mL',r:'12-300'},
-];}
-
-/* ═══════════════════════════════════
-   RENDER RECENT CARDS
-═══════════════════════════════════ */
+/* ── RENDER RECENT CARDS ── */
 function renderRecentCards(){
   const done=queue.filter(q=>q.status==='done'); if(!done.length) return;
   document.getElementById('recent-cards').innerHTML=done.map(q=>`
@@ -792,9 +568,7 @@ function renderRecentCards(){
     </div></div>`).join('');
 }
 
-/* ═══════════════════════════════════
-   TABLE
-═══════════════════════════════════ */
+/* ── TABLE ── */
 function getAllParams(){
   const s=new Set();
   Object.values(allData).forEach(d=>Object.keys(d).forEach(k=>s.add(k)));
@@ -809,7 +583,7 @@ function renderTable(){
   document.getElementById('s-flag').textContent=flags;
   const el=document.getElementById('tbl-sec');
   if(!dates.length){
-    el.innerHTML=`<div class="empty"><div class="empty-ico">🩸</div><div class="empty-title">No reports yet</div><div style="font-size:13px">Upload and read blood test photos first</div></div>`;
+    el.innerHTML=`<div class="empty"><div class="empty-ico">🩸</div><div class="empty-title">No reports yet</div><div style="font-size:13px">Upload and analyze blood test photos first</div></div>`;
     return;
   }
   let html='';
@@ -856,9 +630,7 @@ function renderExportSummary(){
 function getName(){return document.getElementById('patient-name').value||'Patient';}
 function getAG(){return document.getElementById('patient-age').value||'';}
 
-/* ═══════════════════════════════════
-   EXPORTS
-═══════════════════════════════════ */
+/* ── EXPORTS ── */
 function exportExcel(){
   const dates=Object.keys(allData).sort(), params=getAllParams();
   if(!params.length){toast('No data to export');return;}
