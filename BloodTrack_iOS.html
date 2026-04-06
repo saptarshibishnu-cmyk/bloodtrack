@@ -185,7 +185,10 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
         <div class="pat-name" id="pat-nm">—</div>
         <div class="pat-meta" id="pat-mt">Patient</div>
       </div>
-      <button class="btn btn-sm" onclick="showTab('export')">Edit</button>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <button class="btn btn-sm" onclick="showTab('export')">Edit</button>
+        <button class="btn btn-sm" style="background:#fcebeb;color:#e24b4a;border-color:#f09595" onclick="confirmNewPatient()">New</button>
+      </div>
     </div>
 
     <div class="cam-row">
@@ -227,6 +230,10 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 
   <!-- REPORTS -->
   <div id="tab-table" class="screen">
+    <button class="btn" style="width:100%;justify-content:center;margin-bottom:12px;background:#fcebeb;color:#e24b4a;border-color:#f09595;font-weight:600" onclick="confirmNewPatient()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 6H6m0 0H0m6 0V0m0 6v6"/></svg>
+      New Patient — Clear All Data
+    </button>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-val" id="s-rep">0</div><div class="stat-lbl">Reports</div></div>
       <div class="stat-card"><div class="stat-val" id="s-par">0</div><div class="stat-lbl">Parameters</div></div>
@@ -243,6 +250,10 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 
   <!-- EXPORT -->
   <div id="tab-export" class="screen">
+    <button class="btn" style="width:100%;justify-content:center;margin-bottom:12px;background:#fcebeb;color:#e24b4a;border-color:#f09595;font-weight:600" onclick="confirmNewPatient()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 6H6m0 0H0m6 0V0m0 6v6"/></svg>
+      New Patient — Clear All Data
+    </button>
     <div class="card">
       <div class="card-hd">
         <span style="font-weight:600;font-size:14px">Patient details</span>
@@ -369,6 +380,36 @@ function syncPatient(){
   patientInfo.name=document.getElementById('patient-name').value;
   try{localStorage.setItem('bt_patient',JSON.stringify(patientInfo));}catch(e){}
   updateBanner();
+}
+
+function confirmNewPatient(){
+  if(!confirm('Start a new patient? This will clear all scans and report data.')) return;
+  newPatient();
+}
+
+function newPatient(){
+  // Clear all data
+  queue=[];
+  allData={};
+  patientInfo={name:'',age:'',gender:''};
+  // Clear localStorage
+  try{localStorage.removeItem('bt_patient');}catch(e){}
+  try{localStorage.removeItem('bt_data');}catch(e){}
+  // Reset UI
+  document.getElementById('img-grid').innerHTML='';
+  document.getElementById('img-grid').style.display='none';
+  document.getElementById('queue-sec').style.display='none';
+  document.getElementById('recent-cards').innerHTML='';
+  document.getElementById('pat-banner').style.display='none';
+  document.getElementById('auto-badge').style.display='none';
+  document.getElementById('patient-name').value='';
+  document.getElementById('patient-age').value='';
+  // Reset analyze button
+  const btn=document.getElementById('analyze-btn');
+  if(btn){btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 11L5 7l4 4L14 2"/></svg> Analyze Reports';btn.disabled=false;}
+  // Go to upload tab
+  showTab('upload');
+  toast('✅ Ready for new patient');
 }
 
 /* ── FILE HANDLING ── */
@@ -503,18 +544,141 @@ async function analyzeAll(){
 async function analyzeWithClaude(dataUrl){
 
   const prompt = `You are analyzing a blood test report image from an Indian laboratory.
-Extract ALL information and return ONLY valid JSON with no markdown fences:
+
+First identify the TEST PANEL TYPE from the report heading (e.g. Complete Blood Count / Hemogram, LFT / Liver Function Test, KFT / Kidney Function Test, Lipid Profile, Thyroid Profile, etc.)
+
+Then extract ONLY the parameters listed below for each panel. If the report contains multiple panels, apply the rules for each.
+
+PANEL RULES — extract ONLY these parameters:
+
+COMPLETE BLOOD COUNT / HEMOGRAM / CBC:
+- Hemoglobin (Hb)
+- Total Leucocyte Count (TLC) / WBC Count
+- Platelet Count
+
+LFT / LIVER FUNCTION TEST:
+- Bilirubin Total
+- Bilirubin Direct
+- Bilirubin Indirect
+- ALT / SGPT
+- AST / SGOT
+- ALP / Alkaline Phosphatase
+- Total Protein
+- Albumin
+- Globulin
+
+KFT / KIDNEY FUNCTION TEST / RENAL:
+- Serum Creatinine
+- Blood Urea / Urea
+- Uric Acid
+- eGFR (if present)
+
+LIPID PROFILE:
+- Total Cholesterol
+- Triglycerides
+- HDL Cholesterol
+- LDL Cholesterol
+- VLDL Cholesterol
+
+THYROID PROFILE:
+- TSH
+- T3
+- T4
+
+DIABETES / BLOOD GLUCOSE:
+- Fasting Blood Glucose
+- Post Prandial Blood Glucose
+- HbA1c
+
+IRON STUDIES:
+- Serum Iron
+- Ferritin
+- TIBC
+
+VITAMINS:
+- Vitamin D
+- Vitamin B12
+
+VIRAL SEROLOGY / HEPATITIS PANEL:
+- HAV IgM / Hepatitis A IgM
+- HBsAg / Hepatitis B Surface Antigen
+- Anti-HBs / HBsAb
+- HBeAg / Hepatitis B e Antigen
+- Anti-HCV / HCV Antibody / Hepatitis C
+- HEV IgM / Hepatitis E IgM
+- HEV IgG / Hepatitis E IgG
+- HIV 1 & 2 / Anti-HIV
+- VDRL / RPR (syphilis)
+For serology tests: value must be "Positive" or "Negative" (or "Reactive"/"Non-Reactive"). Status = "high" if Positive/Reactive, "normal" if Negative/Non-Reactive.
+
+AUTOIMMUNE SEROLOGY:
+- ANA / Antinuclear Antibody
+- Anti-dsDNA
+- ANCA
+- Anti-CCP
+- RF / Rheumatoid Factor
+- C3 / Complement C3
+- C4 / Complement C4
+- Anti-TPO / Thyroid Peroxidase Antibody
+- Anti-Thyroglobulin
+- AMA / Anti-Mitochondrial Antibody
+- ASMA / Anti-Smooth Muscle Antibody
+- Anti-LKM
+- p-ANCA / c-ANCA
+- IgG4
+For autoimmune serology: value must be "Positive" or "Negative". If a titre is given (e.g. 1:160), record the titre as value and set status = "high" if positive/above cutoff, "normal" if negative/below cutoff.
+
+URINE ROUTINE / URINALYSIS:
+- Colour
+- Appearance
+- pH
+- Specific Gravity
+- Protein (urine)
+- Glucose (urine)
+- Ketones
+- Bilirubin (urine)
+- Blood / RBC
+- WBC / Pus Cells
+- Epithelial Cells
+- Casts
+- Crystals
+
+CSF / CEREBROSPINAL FLUID:
+- Appearance
+- Total Cell Count
+- Differential Count
+- Protein (CSF)
+- Glucose (CSF)
+- Chloride
+
+If the report is for a panel NOT listed above, extract ALL parameters from that panel.
+
+Return ONLY valid JSON with no markdown fences, no explanation:
 {
   "patient_name": "full patient name or null",
-  "patient_age": "age string or null",
+  "patient_age": "age string e.g. 58 yrs or null",
   "patient_gender": "Male or Female or null",
-  "report_date": "collection date YYYY-MM-DD or null",
+  "report_date": "sample COLLECTION date in YYYY-MM-DD format or null",
   "lab_name": "laboratory name or null",
+  "panel_type": "detected panel name e.g. CBC or LFT or Hepatitis Panel",
   "parameters": [
-    {"name":"test name","value":"number","unit":"unit","range":"ref range","status":"normal or high or low"}
+    {
+      "name": "exact test name",
+      "value": "numeric result OR Positive/Negative/Reactive/Non-Reactive as appropriate",
+      "unit": "unit of measurement or empty string for serology",
+      "range": "reference range or Negative for serology",
+      "status": "normal or high or low"
+    }
   ]
 }
-Extract every test result. Use H/L flags for status. Use collection date not report date.`;
+
+Rules:
+- patient_name: from Patient Information section ONLY
+- report_date: use Collection/Sample date, NOT Reported date
+- For serology: status = high if Positive/Reactive, normal if Negative/Non-Reactive
+- For numeric tests: use H/L flag from report if shown, else compare value to reference range
+- Ignore: doctor info, lab address, barcode, client code, footer text, methodology
+- Never extract: machine model, method, accreditation text, doctor signatures`;
 
   // Try every known Puter vision call pattern
   let response;
@@ -652,9 +816,18 @@ function renderTable(){
     dates.forEach(d=>{
       const v=allData[d]?.[p];
       if(v){
-        const cls=v.status==='high'?'v-hi':v.status==='low'?'v-lo':'v-ok';
-        const icon=v.status==='high'?'↑':v.status==='low'?'↓':'';
-        html+=`<td class="${cls}">${v.value}${icon?`<sup style="font-size:9px">${icon}</sup>`:''}</td>`;
+        const val = v.value || '';
+        const isSerology = /^(positive|negative|reactive|non.?reactive|detected|not detected)$/i.test(val.trim());
+        if(isSerology){
+          const isPos = /^(positive|reactive|detected)$/i.test(val.trim());
+          const cls = isPos ? 'v-hi' : 'v-ok';
+          const icon = isPos ? '⚠' : '✓';
+          html+=`<td class="${cls}" style="font-weight:700">${icon} ${val}</td>`;
+        } else {
+          const cls=v.status==='high'?'v-hi':v.status==='low'?'v-lo':'v-ok';
+          const icon=v.status==='high'?'↑':v.status==='low'?'↓':'';
+          html+=`<td class="${cls}">${val}${icon?`<sup style="font-size:9px">${icon}</sup>`:''}</td>`;
+        }
       }else html+=`<td style="color:var(--hint)">—</td>`;
     });
     html+=`</tr>`;
