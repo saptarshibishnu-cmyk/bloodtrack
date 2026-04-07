@@ -9,10 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="BloodTrack">
 <title>BloodTrack</title>
 <!--
-  Uses Puter.js for FREE Claude AI vision — no API key needed.
-  Sign in with Google at puter.com once, then it works.
+  Uses Google Gemini 2.0 Flash — free, 1500 requests/day, no credit card.
+  Get free API key at aistudio.google.com/apikey using your Gmail.
 -->
-<script src="https://js.puter.com/v2/"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -136,7 +135,7 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
   </div>
   <div>
     <div class="app-bar-title">BloodTrack</div>
-    <div class="app-bar-sub">Claude AI vision · Free via Puter</div>
+    <div class="app-bar-sub">Gemini AI vision · Free · No API cost</div>
   </div>
   <button onclick="confirmNewPatient()" style="margin-left:8px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:5px 11px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;-webkit-appearance:none;font-family:inherit">+ New</button>
 </div>
@@ -150,32 +149,36 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 <div class="scroll-area">
   <div id="tab-upload" class="screen active">
 
-    <!-- Shown until Puter is signed in -->
-    <div class="setup-card" id="puter-setup">
-      <div class="setup-title">⚡ One-time free setup</div>
+    <!-- Shown until Gemini key is saved -->
+    <div class="setup-card" id="gemini-setup">
+      <div class="setup-title">⚡ One-time free setup — 2 minutes</div>
       <div class="setup-step">
         <div class="snum">1</div>
-        <div class="stxt">Go to <a href="https://puter.com" target="_blank">puter.com</a> and create a free account — sign up with Google</div>
+        <div class="stxt">Open <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> in your browser</div>
       </div>
       <div class="setup-step">
         <div class="snum">2</div>
-        <div class="stxt">Come back here and tap <strong>"Sign in to Puter"</strong> below</div>
+        <div class="stxt">Sign in with your <strong>Gmail</strong> account — completely free, no credit card</div>
       </div>
       <div class="setup-step">
         <div class="snum">3</div>
-        <div class="stxt">Done! Claude AI will read your reports perfectly — no more garbled text</div>
+        <div class="stxt">Tap <strong>"Create API Key"</strong> → copy the key shown</div>
       </div>
-      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-p" onclick="puterSignIn()">Sign in to Puter</button>
-        <div id="puter-status" style="font-size:12px;color:var(--muted);align-self:center"></div>
+      <div class="setup-step">
+        <div class="snum">4</div>
+        <div class="stxt">Paste it below and tap <strong>Save</strong> — done!</div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <input type="password" id="gemini-key-input" placeholder="AIza..." style="flex:1;padding:10px 12px;border:1px solid var(--border2);border-radius:9px;font-size:13px;font-family:inherit;background:#fff;color:var(--text);min-width:0">
+        <button class="btn btn-p btn-sm" onclick="saveGeminiKey()">Save</button>
       </div>
     </div>
 
-    <div class="info-card" id="puter-ok" style="display:none">
+    <div class="info-card" id="gemini-ok" style="display:none">
       <div class="info-icon">✅</div>
       <div>
-        <div class="info-title">Connected — Claude AI ready</div>
-        <div class="info-body">Claude vision will accurately read your blood reports including patient name, date, and all test values.</div>
+        <div class="info-title">Gemini AI ready — 1500 free scans/day</div>
+        <div class="info-body">Google Gemini 2.0 Flash will accurately read your blood reports. Completely free, no limits for normal use.</div>
       </div>
     </div>
 
@@ -313,36 +316,26 @@ let pendingDateResolve=null;
 function init(){
   try{const p=localStorage.getItem('bt_patient');if(p){patientInfo=JSON.parse(p);syncPatientUI();}}catch(e){}
   try{const d=localStorage.getItem('bt_data');if(d){allData=JSON.parse(d);}}catch(e){}
-  // Check if already signed in to Puter
-  checkPuterAuth();
+  // Check for saved Gemini key
+  const savedKey = localStorage.getItem('bt_gemini_key');
+  if(savedKey){ geminiKey = savedKey; showGeminiOk(); }
 }
 
-/* ── PUTER AUTH ── */
-async function checkPuterAuth(){
-  try{
-    const isSignedIn = puter.auth.isSignedIn();
-    if(isSignedIn){
-      showPuterOk();
-    }
-  }catch(e){}
+/* ── GEMINI KEY ── */
+var geminiKey = '';
+
+function saveGeminiKey(){
+  const v = document.getElementById('gemini-key-input').value.trim();
+  if(!v){ toast('Please paste your API key'); return; }
+  geminiKey = v;
+  localStorage.setItem('bt_gemini_key', v);
+  showGeminiOk();
+  toast('✅ Key saved! You can now analyze reports.');
 }
 
-async function puterSignIn(){
-  const statusEl=document.getElementById('puter-status');
-  statusEl.textContent='Opening sign-in…';
-  try{
-    await puter.auth.signIn();
-    showPuterOk();
-    toast('✅ Signed in! You can now analyze reports.');
-  }catch(e){
-    statusEl.textContent='Sign-in failed. Try again.';
-    toast('Sign-in failed: '+e.message, 5000);
-  }
-}
-
-function showPuterOk(){
-  document.getElementById('puter-setup').style.display='none';
-  document.getElementById('puter-ok').style.display='flex';
+function showGeminiOk(){
+  document.getElementById('gemini-setup').style.display='none';
+  document.getElementById('gemini-ok').style.display='flex';
 }
 
 /* ── TABS ── */
@@ -480,8 +473,10 @@ function confirmDate(){
 
 /* ── MAIN ANALYZE LOOP ── */
 async function analyzeAll(){
-  if(!puter.auth.isSignedIn()){
-    toast('Please sign in to Puter first');
+  if(!geminiKey){
+    toast('Please set up your free Gemini API key first');
+    document.getElementById('gemini-setup').style.display='';
+    showTab('upload');
     return;
   }
   const pending=queue.filter(q=>q.status==='pending');
@@ -540,8 +535,12 @@ async function analyzeAll(){
   if(done) toast(`✅ ${done} report${done>1?'s':''} analyzed! Check Reports tab.`);
 }
 
-/* ── CLAUDE AI VIA PUTER ── */
+/* ── GEMINI AI VISION ── */
 async function analyzeWithClaude(dataUrl){
+  // dataUrl is a base64 data URL — extract the base64 part and mime type
+  const parts = dataUrl.split(',');
+  const mime = parts[0].split(':')[1].split(';')[0] || 'image/jpeg';
+  const b64 = parts[1];
 
   const prompt = `You are analyzing a blood test report image from an Indian laboratory.
 
@@ -603,53 +602,20 @@ VIRAL SEROLOGY / HEPATITIS PANEL:
 - HAV IgM / Hepatitis A IgM
 - HBsAg / Hepatitis B Surface Antigen
 - Anti-HBs / HBsAb
-- HBeAg / Hepatitis B e Antigen
-- Anti-HCV / HCV Antibody / Hepatitis C
+- HBeAg
+- Anti-HCV / HCV Antibody
 - HEV IgM / Hepatitis E IgM
-- HEV IgG / Hepatitis E IgG
-- HIV 1 & 2 / Anti-HIV
-- VDRL / RPR (syphilis)
-For serology tests: value must be "Positive" or "Negative" (or "Reactive"/"Non-Reactive"). Status = "high" if Positive/Reactive, "normal" if Negative/Non-Reactive.
+- HEV IgG
+- HIV 1 & 2
+- VDRL / RPR
+For serology: value must be Positive or Negative. status = high if Positive, normal if Negative.
 
 AUTOIMMUNE SEROLOGY:
-- ANA / Antinuclear Antibody
-- Anti-dsDNA
-- ANCA
-- Anti-CCP
-- RF / Rheumatoid Factor
-- C3 / Complement C3
-- C4 / Complement C4
-- Anti-TPO / Thyroid Peroxidase Antibody
-- Anti-Thyroglobulin
-- AMA / Anti-Mitochondrial Antibody
-- ASMA / Anti-Smooth Muscle Antibody
-- Anti-LKM
-- p-ANCA / c-ANCA
-- IgG4
-For autoimmune serology: value must be "Positive" or "Negative". If a titre is given (e.g. 1:160), record the titre as value and set status = "high" if positive/above cutoff, "normal" if negative/below cutoff.
+- ANA, Anti-dsDNA, ANCA, Anti-CCP, RF, C3, C4, Anti-TPO, Anti-Thyroglobulin, AMA, ASMA, Anti-LKM, IgG4
+For autoimmune: value = Positive or Negative (or titre like 1:160). status = high if positive.
 
-URINE ROUTINE / URINALYSIS:
-- Colour
-- Appearance
-- pH
-- Specific Gravity
-- Protein (urine)
-- Glucose (urine)
-- Ketones
-- Bilirubin (urine)
-- Blood / RBC
-- WBC / Pus Cells
-- Epithelial Cells
-- Casts
-- Crystals
-
-CSF / CEREBROSPINAL FLUID:
-- Appearance
-- Total Cell Count
-- Differential Count
-- Protein (CSF)
-- Glucose (CSF)
-- Chloride
+URINE ROUTINE:
+- Colour, Appearance, pH, Specific Gravity, Protein, Glucose, Ketones, Bilirubin, Blood, WBC/Pus Cells
 
 If the report is for a panel NOT listed above, extract ALL parameters from that panel.
 
@@ -660,161 +626,103 @@ Return ONLY valid JSON with no markdown fences, no explanation:
   "patient_gender": "Male or Female or null",
   "report_date": "sample COLLECTION date in YYYY-MM-DD format or null",
   "lab_name": "laboratory name or null",
-  "panel_type": "detected panel name e.g. CBC or LFT or Hepatitis Panel",
+  "panel_type": "detected panel name",
   "parameters": [
     {
       "name": "exact test name",
-      "value": "numeric result OR Positive/Negative/Reactive/Non-Reactive as appropriate",
-      "unit": "unit of measurement or empty string for serology",
-      "range": "reference range or Negative for serology",
+      "value": "numeric result OR Positive/Negative as appropriate",
+      "unit": "unit of measurement",
+      "range": "reference range",
       "status": "normal or high or low"
     }
   ]
 }
 
+DEDUPLICATION — important:
+- ALP and ALP/Alkaline Phosphatase = same test, use name ALP only
+- ALT and ALT/SGPT = same, use ALT
+- AST and AST/SGOT = same, use AST
+- Never include the same test twice
+
+PLATELET COUNT: if result looks like 80-85 (two numbers), that IS the value — record as-is and compare to reference range for status.
+
 Rules:
 - patient_name: from Patient Information section ONLY
-- report_date: use Collection/Sample date, NOT Reported date
-- For serology: status = high if Positive/Reactive, normal if Negative/Non-Reactive
-- For numeric tests: use H/L flag from report if shown, else compare value to reference range
-- Ignore: doctor info, lab address, barcode, client code, footer text, methodology
-- Never extract: machine model, method, accreditation text, doctor signatures
+- report_date: Collection/Sample date, NOT Reported date
+- Ignore: doctor info, address, barcode, footer, methodology`;
 
-DEDUPLICATION — very important:
-- ALP and "ALP / Alkaline Phosphatase" are the SAME test — use name "ALP" only, pick whichever has a value
-- ALT and "ALT / SGPT" are the SAME test — use name "ALT" only
-- AST and "AST / SGOT" are the SAME test — use name "AST" only
-- "Total Leucocyte Count" and "WBC Count" and "TLC" are the SAME — use "Total Leucocyte Count"
-- Never include the same test twice with different name variants
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey;
 
-PLATELET COUNT special rule:
-- Some labs report platelet count as a range like "80-85" — this is the RESULT, not the reference range
-- If the result looks like "80-85" or "150-200" (two numbers with a hyphen), that IS the value — record it as-is
-- The reference range for platelets is always much wider e.g. "150000-450000" or "150-450 x10^3"
-- status: compare the result to the reference range — if result is below lower limit, status = low
+  const body = {
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: mime, data: b64 } },
+        { text: prompt }
+      ]
+    }],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+  };
 
-PANEL SEPARATION:
-- If a report contains MULTIPLE panels (e.g. CBC + LFT together), apply the correct filter to each panel separately
-- Do NOT mix parameters across panels — Hemoglobin belongs to CBC only, not LFT`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
 
-  // Try every known Puter vision call pattern
-  let response;
-  let lastErr = '';
-
-  // Pattern 1: chat(prompt, dataUrl, testMode, options)
-  try {
-    response = await puter.ai.chat(prompt, dataUrl, false, { model: 'claude-opus-4-5' });
-    if (response) { console.log('Pattern 1 worked'); }
-  } catch(e) { lastErr = 'P1:' + e.message; response = null; }
-
-  // Pattern 2: chat(prompt, dataUrl, options) — no testMode
-  if (!response) {
-    try {
-      response = await puter.ai.chat(prompt, dataUrl, { model: 'claude-opus-4-5' });
-      if (response) { console.log('Pattern 2 worked'); }
-    } catch(e) { lastErr += ' P2:' + e.message; response = null; }
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    const msg = (err.error && err.error.message) ? err.error.message : 'Gemini error ' + res.status;
+    throw new Error(msg);
   }
 
-  // Pattern 3: messages array with image_url
-  if (!response) {
-    try {
-      response = await puter.ai.chat([
-        { role: 'user', content: [
-          { type: 'image_url', image_url: { url: dataUrl } },
-          { type: 'text', text: prompt }
-        ]}
-      ], false, { model: 'claude-opus-4-5' });
-      if (response) { console.log('Pattern 3 worked'); }
-    } catch(e) { lastErr += ' P3:' + e.message; response = null; }
-  }
+  const data = await res.json();
+  const text = (data.candidates &&
+                data.candidates[0] &&
+                data.candidates[0].content &&
+                data.candidates[0].content.parts &&
+                data.candidates[0].content.parts[0] &&
+                data.candidates[0].content.parts[0].text) ? data.candidates[0].content.parts[0].text : '';
 
-  // Pattern 4: gpt-4o as fallback vision model
-  if (!response) {
-    try {
-      response = await puter.ai.chat(prompt, dataUrl, false, { model: 'gpt-4o' });
-      if (response) { console.log('Pattern 4 gpt-4o worked'); }
-    } catch(e) { lastErr += ' P4:' + e.message; response = null; }
-  }
-
-  if (!response) {
-    throw new Error('All AI patterns failed: ' + lastErr);
-  }
-
-  console.log('Response:', JSON.stringify(response).substring(0, 400));
-
-  // Extract text from response
-  let text = '';
-  try {
-    if (typeof response === 'string') {
-      text = response;
-    } else if (response.message && response.message.content) {
-      const c = response.message.content;
-      text = Array.isArray(c) ? c.map(b => b.text || '').join('') : String(c);
-    } else if (response.content) {
-      const c = response.content;
-      text = Array.isArray(c) ? c.map(b => b.text || '').join('') : String(c);
-    } else if (response.text) {
-      text = String(response.text);
-    } else {
-      text = JSON.stringify(response);
-    }
-  } catch(e) { text = String(response); }
-
-  console.log('Text extracted:', text.substring(0, 300));
-
-  if (!text || text.trim().length < 5) {
-    throw new Error('Empty AI response. Check console for details.');
+  if(!text || text.trim().length < 5){
+    throw new Error('Empty response from Gemini. Please try again.');
   }
 
   const j1 = text.indexOf('{');
   const j2 = text.lastIndexOf('}');
-  if (j1 === -1 || j2 <= j1) {
-    throw new Error('No JSON found. Got: ' + text.substring(0, 100));
+  if(j1 === -1 || j2 <= j1){
+    throw new Error('No JSON in response. Got: ' + text.substring(0, 100));
   }
 
   const parsed = JSON.parse(text.substring(j1, j2 + 1));
-  if (!parsed.parameters || !parsed.parameters.length) {
-    throw new Error('No parameters in response. Ensure full report is visible.');
+  if(!parsed.parameters || !parsed.parameters.length){
+    throw new Error('No parameters found. Ensure the full report is visible.');
   }
 
-  // Client-side deduplication — merge known aliases
+  // Client-side deduplication
   const ALIASES = {
-    'alp / alkaline phosphatase': 'ALP',
-    'alkaline phosphatase': 'ALP',
-    'alt / sgpt': 'ALT',
-    'sgpt': 'ALT',
-    'ast / sgot': 'AST',
-    'sgot': 'AST',
+    'alp / alkaline phosphatase': 'ALP', 'alkaline phosphatase': 'ALP',
+    'alt / sgpt': 'ALT', 'sgpt': 'ALT',
+    'ast / sgot': 'AST', 'sgot': 'AST',
     'total leucocyte count (tlc)': 'Total Leucocyte Count',
-    'tlc': 'Total Leucocyte Count',
-    'wbc count': 'Total Leucocyte Count',
-    'wbc': 'Total Leucocyte Count',
-    'hb': 'Hemoglobin',
-    'haemoglobin': 'Hemoglobin',
-    'haemoglobin (hb)': 'Hemoglobin',
-    'hemoglobin (hb)': 'Hemoglobin',
-    'bilirubin (total)': 'Total Bilirubin',
-    'bilirubin total': 'Total Bilirubin',
-    'bilirubin (direct)': 'Direct Bilirubin',
-    'bilirubin direct': 'Direct Bilirubin',
-    'bilirubin (indirect)': 'Indirect Bilirubin',
-    'bilirubin indirect': 'Indirect Bilirubin',
-    'plt': 'Platelet Count',
-    'platelets': 'Platelet Count',
+    'tlc': 'Total Leucocyte Count', 'wbc count': 'Total Leucocyte Count', 'wbc': 'Total Leucocyte Count',
+    'hb': 'Hemoglobin', 'haemoglobin': 'Hemoglobin',
+    'haemoglobin (hb)': 'Hemoglobin', 'hemoglobin (hb)': 'Hemoglobin',
+    'bilirubin (total)': 'Total Bilirubin', 'bilirubin total': 'Total Bilirubin',
+    'bilirubin (direct)': 'Direct Bilirubin', 'bilirubin direct': 'Direct Bilirubin',
+    'bilirubin (indirect)': 'Indirect Bilirubin', 'bilirubin indirect': 'Indirect Bilirubin',
+    'plt': 'Platelet Count', 'platelets': 'Platelet Count',
   };
-
   const seen = {};
   const deduped = [];
-  (parsed.parameters || []).forEach(function(p) {
-    const key = (ALIASES[p.name.toLowerCase()] || p.name).trim();
+  (parsed.parameters || []).forEach(function(p){
     p.name = ALIASES[p.name.toLowerCase()] || p.name;
-    if (!seen[key]) {
+    const key = p.name.toLowerCase();
+    if(!seen[key]){
       seen[key] = true;
       deduped.push(p);
     } else {
-      // If duplicate has a value and existing doesn't, replace
-      const existing = deduped.find(function(x){ return x.name === p.name; });
-      if (existing && !existing.value && p.value) {
+      const existing = deduped.find(function(x){ return x.name.toLowerCase() === key; });
+      if(existing && !existing.value && p.value){
         existing.value = p.value;
         existing.unit = p.unit || existing.unit;
         existing.range = p.range || existing.range;
