@@ -135,7 +135,7 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
   </div>
   <div>
     <div class="app-bar-title">BloodTrack</div>
-    <div class="app-bar-sub">Gemini AI vision · Free · No API cost</div>
+    <div class="app-bar-sub">Llama 4 vision · Free via Groq</div>
   </div>
   <button onclick="confirmNewPatient()" style="margin-left:8px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:5px 11px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;-webkit-appearance:none;font-family:inherit">+ New</button>
 </div>
@@ -149,16 +149,16 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 <div class="scroll-area">
   <div id="tab-upload" class="screen active">
 
-    <!-- Shown until Gemini key is saved -->
+    <!-- Shown until Groq key is saved -->
     <div class="setup-card" id="gemini-setup">
       <div class="setup-title">⚡ One-time free setup — 2 minutes</div>
       <div class="setup-step">
         <div class="snum">1</div>
-        <div class="stxt">Open <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> in your browser</div>
+        <div class="stxt">Open <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a> in your browser</div>
       </div>
       <div class="setup-step">
         <div class="snum">2</div>
-        <div class="stxt">Sign in with your <strong>Gmail</strong> account — completely free, no credit card</div>
+        <div class="stxt">Sign up free with your <strong>Gmail</strong> — no credit card needed</div>
       </div>
       <div class="setup-step">
         <div class="snum">3</div>
@@ -169,7 +169,7 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
         <div class="stxt">Paste it below and tap <strong>Save</strong> — done!</div>
       </div>
       <div style="margin-top:12px;display:flex;gap:8px">
-        <input type="password" id="gemini-key-input" placeholder="AIza..." style="flex:1;padding:10px 12px;border:1px solid var(--border2);border-radius:9px;font-size:13px;font-family:inherit;background:#fff;color:var(--text);min-width:0">
+        <input type="password" id="gemini-key-input" placeholder="gsk_..." style="flex:1;padding:10px 12px;border:1px solid var(--border2);border-radius:9px;font-size:13px;font-family:inherit;background:#fff;color:var(--text);min-width:0">
         <button class="btn btn-p btn-sm" onclick="saveGeminiKey()">Save</button>
       </div>
     </div>
@@ -177,8 +177,8 @@ input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
     <div class="info-card" id="gemini-ok" style="display:none">
       <div class="info-icon">✅</div>
       <div>
-        <div class="info-title">Gemini AI ready — 1500 free scans/day</div>
-        <div class="info-body">Google Gemini 2.0 Flash will accurately read your blood reports. Completely free, no limits for normal use.</div>
+        <div class="info-title">Groq AI ready — free, works in India</div>
+        <div class="info-body">Llama 4 Scout vision will accurately read your blood reports. Completely free, no regional restrictions.</div>
       </div>
     </div>
 
@@ -317,18 +317,18 @@ function init(){
   try{const p=localStorage.getItem('bt_patient');if(p){patientInfo=JSON.parse(p);syncPatientUI();}}catch(e){}
   try{const d=localStorage.getItem('bt_data');if(d){allData=JSON.parse(d);}}catch(e){}
   // Check for saved Gemini key
-  const savedKey = localStorage.getItem('bt_gemini_key');
+  const savedKey = localStorage.getItem('bt_groq_key');
   if(savedKey){ geminiKey = savedKey; showGeminiOk(); }
 }
 
 /* ── GEMINI KEY ── */
-var geminiKey = '';
+var geminiKey = ''; // Groq API key
 
 function saveGeminiKey(){
   const v = document.getElementById('gemini-key-input').value.trim();
   if(!v){ toast('Please paste your API key'); return; }
   geminiKey = v;
-  localStorage.setItem('bt_gemini_key', v);
+  localStorage.setItem('bt_groq_key', v);
   showGeminiOk();
   toast('✅ Key saved! You can now analyze reports.');
 }
@@ -651,37 +651,38 @@ Rules:
 - report_date: Collection/Sample date, NOT Reported date
 - Ignore: doctor info, address, barcode, footer, methodology`;
 
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + geminiKey;
-
-  const body = {
-    contents: [{
-      parts: [
-        { inline_data: { mime_type: mime, data: b64 } },
-        { text: prompt }
-      ]
-    }],
-    generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
-  };
-
-  const res = await fetch(url, {
+  // Groq API — free, no regional restrictions, Llama 4 Scout vision
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + geminiKey
+    },
+    body: JSON.stringify({
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: 'data:' + mime + ';base64,' + b64 } }
+        ]
+      }],
+      temperature: 0.1,
+      max_tokens: 2048
+    })
   });
 
   if(!res.ok){
     const err = await res.json().catch(()=>({}));
-    const msg = (err.error && err.error.message) ? err.error.message : 'Gemini error ' + res.status;
+    const msg = (err.error && err.error.message) ? err.error.message : 'Groq error ' + res.status;
     throw new Error(msg);
   }
 
   const data = await res.json();
-  const text = (data.candidates &&
-                data.candidates[0] &&
-                data.candidates[0].content &&
-                data.candidates[0].content.parts &&
-                data.candidates[0].content.parts[0] &&
-                data.candidates[0].content.parts[0].text) ? data.candidates[0].content.parts[0].text : '';
+  const text = (data.choices &&
+                data.choices[0] &&
+                data.choices[0].message &&
+                data.choices[0].message.content) ? data.choices[0].message.content : '';
 
   if(!text || text.trim().length < 5){
     throw new Error('Empty response from Gemini. Please try again.');
