@@ -678,7 +678,24 @@ Rules:
 - For serology: status = high if Positive/Reactive, normal if Negative/Non-Reactive
 - For numeric tests: use H/L flag from report if shown, else compare value to reference range
 - Ignore: doctor info, lab address, barcode, client code, footer text, methodology
-- Never extract: machine model, method, accreditation text, doctor signatures`;
+- Never extract: machine model, method, accreditation text, doctor signatures
+
+DEDUPLICATION — very important:
+- ALP and "ALP / Alkaline Phosphatase" are the SAME test — use name "ALP" only, pick whichever has a value
+- ALT and "ALT / SGPT" are the SAME test — use name "ALT" only
+- AST and "AST / SGOT" are the SAME test — use name "AST" only
+- "Total Leucocyte Count" and "WBC Count" and "TLC" are the SAME — use "Total Leucocyte Count"
+- Never include the same test twice with different name variants
+
+PLATELET COUNT special rule:
+- Some labs report platelet count as a range like "80-85" — this is the RESULT, not the reference range
+- If the result looks like "80-85" or "150-200" (two numbers with a hyphen), that IS the value — record it as-is
+- The reference range for platelets is always much wider e.g. "150000-450000" or "150-450 x10^3"
+- status: compare the result to the reference range — if result is below lower limit, status = low
+
+PANEL SEPARATION:
+- If a report contains MULTIPLE panels (e.g. CBC + LFT together), apply the correct filter to each panel separately
+- Do NOT mix parameters across panels — Hemoglobin belongs to CBC only, not LFT`;
 
   // Try every known Puter vision call pattern
   let response;
@@ -759,6 +776,53 @@ Rules:
   if (!parsed.parameters || !parsed.parameters.length) {
     throw new Error('No parameters in response. Ensure full report is visible.');
   }
+
+  // Client-side deduplication — merge known aliases
+  const ALIASES = {
+    'alp / alkaline phosphatase': 'ALP',
+    'alkaline phosphatase': 'ALP',
+    'alt / sgpt': 'ALT',
+    'sgpt': 'ALT',
+    'ast / sgot': 'AST',
+    'sgot': 'AST',
+    'total leucocyte count (tlc)': 'Total Leucocyte Count',
+    'tlc': 'Total Leucocyte Count',
+    'wbc count': 'Total Leucocyte Count',
+    'wbc': 'Total Leucocyte Count',
+    'hb': 'Hemoglobin',
+    'haemoglobin': 'Hemoglobin',
+    'haemoglobin (hb)': 'Hemoglobin',
+    'hemoglobin (hb)': 'Hemoglobin',
+    'bilirubin (total)': 'Total Bilirubin',
+    'bilirubin total': 'Total Bilirubin',
+    'bilirubin (direct)': 'Direct Bilirubin',
+    'bilirubin direct': 'Direct Bilirubin',
+    'bilirubin (indirect)': 'Indirect Bilirubin',
+    'bilirubin indirect': 'Indirect Bilirubin',
+    'plt': 'Platelet Count',
+    'platelets': 'Platelet Count',
+  };
+
+  const seen = {};
+  const deduped = [];
+  (parsed.parameters || []).forEach(function(p) {
+    const key = (ALIASES[p.name.toLowerCase()] || p.name).trim();
+    p.name = ALIASES[p.name.toLowerCase()] || p.name;
+    if (!seen[key]) {
+      seen[key] = true;
+      deduped.push(p);
+    } else {
+      // If duplicate has a value and existing doesn't, replace
+      const existing = deduped.find(function(x){ return x.name === p.name; });
+      if (existing && !existing.value && p.value) {
+        existing.value = p.value;
+        existing.unit = p.unit || existing.unit;
+        existing.range = p.range || existing.range;
+        existing.status = p.status || existing.status;
+      }
+    }
+  });
+  parsed.parameters = deduped;
 
   return parsed;
 }
