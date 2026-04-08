@@ -551,9 +551,9 @@ Then extract ONLY the parameters listed below for each panel. If the report cont
 PANEL RULES — extract ONLY these parameters:
 
 COMPLETE BLOOD COUNT / HEMOGRAM / CBC:
-- Hemoglobin (Hb)
-- Total Leucocyte Count (TLC) / WBC Count
-- Platelet Count
+- Hemoglobin (Hb) — the single value next to "Hemoglobin (Hb)" in the main table
+- Total Leucocyte Count (TLC) — the single value next to "Total Leucocyte Count (TLC)" in the main table. This is usually a 4-5 digit number like 5190 or 6100. Do NOT use values from the "Absolute Leucocyte Count" or "Differential Leucocyte Count" sub-sections — those are sub-components, not TLC.
+- Platelet Count — the value next to "Platelet Count" in the main table, usually 100,000–400,000
 
 LFT / LIVER FUNCTION TEST:
 - Bilirubin Total
@@ -637,6 +637,12 @@ Return ONLY valid JSON with no markdown fences, no explanation:
     }
   ]
 }
+
+CBC SPECIAL RULES — very important:
+- "Total Leucocyte Count (TLC)" is the MAIN white blood cell count (e.g. 5190 Cells/cu.mm). It appears as a single bold row.
+- The "Absolute Leucocyte Count" section below it (Neutrophils 3789, Lymphocytes 1194 etc.) are SUB-COMPONENTS — do NOT use these as TLC.
+- The "Differential Leucocyte Count" section (Neutrophils 73%, Lymphocytes 23% etc.) are percentages — do NOT use these as TLC.
+- Serum Creatinine is a KFT parameter — do NOT include it in CBC results.
 
 DEDUPLICATION — important:
 - ALP and ALP/Alkaline Phosphatase = same test, use name ALP only
