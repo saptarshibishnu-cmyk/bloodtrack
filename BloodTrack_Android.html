@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f6e56">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BloodTrack">
+<link rel="manifest" href="data:application/json,{%22name%22:%22BloodTrack%22,%22short_name%22:%22BloodTrack%22,%22display%22:%22standalone%22,%22background_color%22:%22%230f6e56%22,%22theme_color%22:%22%230f6e56%22}">
+<title>BloodTrack</title>
+<!--
+  Uses Google Gemini 2.0 Flash — free, 1500 requests/day, no credit card.
+  Get free API key at aistudio.google.com/apikey using your Gmail.
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --teal:#0f6e56;--teal-l:#e1f5ee;--teal-d:#085041;
+  --red:#e24b4a;--red-l:#fcebeb;
+  --blue:#185fa5;--blue-l:#e6f1fb;
+  --green:#3b6d11;--green-l:#eaf3de;
+  --amber-l:#fffbeb;
+  --bg:#f4f7f5;--card:#fff;
+  --border:#dde5e0;--border2:#c8d5ce;
+  --text:#1a2e25;--muted:#5a7a6a;--hint:#8aaa98
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+.app-bar{background:var(--teal);color:#fff;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;flex-shrink:0}
+.app-logo{width:34px;height:34px;background:rgba(255,255,255,.18);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.app-bar-title{font-size:17px;font-weight:700;letter-spacing:-.4px}
+.app-bar-sub{font-size:11px;opacity:.75;margin-top:1px}
+.free-pill{margin-left:auto;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.tab-bar{background:var(--card);border-bottom:0.5px solid var(--border2);display:flex;flex-shrink:0}
+.tab{flex:1;padding:11px 4px 10px;text-align:center;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;transition:.2s;user-select:none}
+.tab.active{color:var(--teal);border-bottom-color:var(--teal);font-weight:600}
+.scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.screen{display:none;padding:14px;padding-bottom:max(72px,calc(env(safe-area-inset-bottom) + 24px));padding-bottom:max(24px,calc(env(safe-area-inset-bottom) + 8px));animation:fi .2s ease}
+.screen.active{display:block}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* SETUP CARD */
+.setup-card{background:#fffbeb;border:1px solid #fcd34d;border-radius:14px;padding:16px;margin-bottom:14px}
+.setup-title{font-size:14px;font-weight:700;color:#92400e;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.setup-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
+.setup-step:last-child{margin-bottom:0}
+.snum{width:22px;height:22px;border-radius:50%;background:var(--teal);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.stxt{font-size:13px;color:#78350f;line-height:1.6}
+.stxt a{color:var(--teal);font-weight:700;text-decoration:none}
+
+.info-card{background:var(--teal-l);border:1px solid #9fe1cb;border-radius:14px;padding:14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start}
+.info-icon{font-size:20px;flex-shrink:0}
+.info-title{font-size:13px;font-weight:700;color:var(--teal-d);margin-bottom:3px}
+.info-body{font-size:12px;color:var(--muted);line-height:1.6}
+.card{background:var(--card);border-radius:14px;border:0.5px solid var(--border2);overflow:hidden;margin-bottom:12px}
+.card-hd{padding:11px 14px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card-bd{padding:12px 14px}
+.cam-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.cam-btn{background:var(--card);border:1.5px solid var(--border2);border-radius:14px;padding:20px 10px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;-webkit-appearance:none;font-family:inherit;cursor:pointer;transition:.15s}
+.cam-btn:active{background:var(--teal-l);border-color:var(--teal);transform:scale(.97)}
+.cam-btn-icon{font-size:30px;line-height:1}
+.cam-btn-label{font-size:13px;font-weight:600;color:var(--text)}
+.cam-btn-sub{font-size:11px;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:11px 18px;border-radius:12px;border:0.5px solid var(--border2);cursor:pointer;font-size:14px;font-weight:500;font-family:inherit;background:var(--card);color:var(--text);transition:.15s;-webkit-appearance:none}
+.btn:active{transform:scale(.96)}
+.btn-p{background:var(--teal);color:#fff;border-color:transparent;font-weight:600}
+.btn-sm{padding:8px 13px;font-size:13px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.b-ok{background:var(--green-l);color:var(--green)}
+.b-new{background:var(--teal-l);color:var(--teal-d)}
+.img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-bottom:12px}
+.img-thumb{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;border:0.5px solid var(--border2);background:#f0f5f2}
+.img-thumb img{width:100%;height:100%;object-fit:cover}
+.rm-btn{position:absolute;top:4px;right:4px;width:22px;height:22px;background:rgba(0,0,0,.65);border-radius:50%;color:#fff;border:none;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+.img-lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.65);color:#fff;font-size:9px;padding:3px 5px;text-align:center;line-height:1.4}
+.table-wrap{overflow-x:auto;border-radius:12px;border:0.5px solid var(--border2);-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f0f5f2;padding:9px 11px;text-align:left;font-weight:600;color:var(--muted);border-bottom:0.5px solid var(--border2);white-space:nowrap;font-size:11px}
+td{padding:9px 11px;border-bottom:0.5px solid #eef2f0;white-space:nowrap;color:var(--text)}
+tr:last-child td{border-bottom:none}
+.v-hi{color:var(--red);font-weight:700}
+.v-lo{color:var(--blue);font-weight:700}
+.v-ok{color:var(--green)}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stat-card{background:var(--card);border:0.5px solid var(--border2);border-radius:12px;padding:12px;text-align:center}
+.stat-val{font-size:26px;font-weight:700;color:var(--teal)}
+.stat-lbl{font-size:11px;color:var(--muted);margin-top:2px}
+.prog-wrap{background:var(--card);border:0.5px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:12px}
+.prog-label{font-size:13px;font-weight:600;margin-bottom:4px}
+.prog-sub{font-size:12px;color:var(--muted);margin-bottom:10px;min-height:18px}
+.prog-bar{height:6px;background:var(--teal-l);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;background:var(--teal);border-radius:3px;transition:width .3s}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+.pat-banner{background:var(--teal-l);border:0.5px solid #9fe1cb;border-radius:14px;padding:13px 14px;margin-bottom:12px;display:flex;align-items:center;gap:12px}
+.pat-av{width:44px;height:44px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
+.pat-name{font-size:15px;font-weight:700;color:var(--teal-d)}
+.pat-meta{font-size:12px;color:var(--green);margin-top:2px}
+.export-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.export-btn{background:var(--card);border:0.5px solid var(--border2);border-radius:14px;padding:18px 8px;text-align:center;cursor:pointer}
+.export-btn:active{background:var(--teal-l);border-color:var(--teal);transform:scale(.97)}
+.e-icon{font-size:28px;margin-bottom:7px}
+.e-lbl{font-size:13px;font-weight:600;color:var(--text)}
+.e-sub{font-size:10px;color:var(--muted);margin-top:3px}
+.field{width:100%;padding:12px 13px;border:0.5px solid var(--border2);border-radius:10px;font-size:15px;font-family:inherit;background:var(--card);color:var(--text);-webkit-appearance:none}
+.field:focus{outline:none;border-color:var(--teal)}
+.field-lbl{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.field-row{margin-bottom:14px}
+.empty{text-align:center;padding:48px 16px;color:var(--muted)}
+.empty-ico{font-size:48px;margin-bottom:12px;opacity:.3}
+.empty-title{font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px}
+.toast{position:fixed;bottom:max(72px,calc(env(safe-area-inset-bottom) + 24px));left:50%;transform:translateX(-50%) translateY(80px);background:#1a2e25;color:#fff;padding:11px 20px;border-radius:14px;font-size:13px;z-index:9999;transition:.35s cubic-bezier(.34,1.56,.64,1);opacity:0;pointer-events:none;max-width:92vw;text-align:center;font-weight:500}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:flex-end;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--card);border-radius:22px 22px 0 0;padding:20px 18px;padding-bottom:max(32px,calc(env(safe-area-inset-bottom) + 16px));width:100%;max-width:520px;animation:up .28s cubic-bezier(.34,1.2,.64,1)}
+@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:38px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 18px}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:8px}
+.modal-sub{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:16px}
+input[type=file]{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+</style>
+</head>
+<body>
+
+<div class="app-bar">
+  <div class="app-logo">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M10 2v4M10 14v4M2 10h4M14 10h4" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="10" cy="10" r="3" fill="#fff"/>
+    </svg>
+  </div>
+  <div>
+    <div class="app-bar-title">BloodTrack</div>
+    <div class="app-bar-sub">Llama 4 vision · Free · Android &amp; iPhone</div>
+  </div>
+  <button onclick="confirmNewPatient()" style="margin-left:8px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:5px 11px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;-webkit-appearance:none;font-family:inherit">+ New</button>
+</div>
+
+<div class="tab-bar">
+  <div class="tab active" onclick="showTab('upload')">📤 Upload</div>
+  <div class="tab" onclick="showTab('table')">📊 Reports</div>
+  <div class="tab" onclick="showTab('export')">💾 Export</div>
+</div>
+
+<div class="scroll-area">
+  <div id="tab-upload" class="screen active">
+
+    <!-- Shown until Groq key is saved -->
+    <div class="setup-card" id="gemini-setup">
+      <div class="setup-title">⚡ One-time free setup — 2 minutes</div>
+      <div class="setup-step">
+        <div class="snum">1</div>
+        <div class="stxt">Open <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a> in your browser</div>
+      </div>
+      <div class="setup-step">
+        <div class="snum">2</div>
+        <div class="stxt">Sign up free with your <strong>Gmail</strong> — no credit card needed</div>
+      </div>
+      <div class="setup-step">
+        <div class="snum">3</div>
+        <div class="stxt">Tap <strong>"Create API Key"</strong> → copy the key shown</div>
+      </div>
+      <div class="setup-step">
+        <div class="snum">4</div>
+        <div class="stxt">Paste it below and tap <strong>Save</strong> — done!</div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <input type="password" id="gemini-key-input" placeholder="gsk_..." style="flex:1;padding:10px 12px;border:1px solid var(--border2);border-radius:9px;font-size:13px;font-family:inherit;background:#fff;color:var(--text);min-width:0">
+        <button class="btn btn-p btn-sm" onclick="saveGeminiKey()">Save</button>
+      </div>
+    </div>
+
+    <div class="info-card" id="gemini-ok" style="display:none">
+      <div class="info-icon">✅</div>
+      <div>
+        <div class="info-title">Groq AI ready — free, works in India</div>
+        <div class="info-body">Llama 4 Scout vision will accurately read your blood reports. Completely free, no regional restrictions.</div>
+      </div>
+    </div>
+
+    <div id="pat-banner" class="pat-banner" style="display:none">
+      <div class="pat-av" id="pat-av">?</div>
+      <div style="flex:1;min-width:0">
+        <div class="pat-name" id="pat-nm">—</div>
+        <div class="pat-meta" id="pat-mt">Patient</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <button class="btn btn-sm" onclick="showTab('export')">Edit</button>
+        <button class="btn btn-sm" style="background:#fcebeb;color:#e24b4a;border-color:#f09595" onclick="confirmNewPatient()">New</button>
+      </div>
+    </div>
+
+    <div class="cam-row">
+      <label class="cam-btn" for="inp-cam">
+        <span class="cam-btn-icon">📷</span>
+        <span class="cam-btn-label">Take Photo</span>
+        <span class="cam-btn-sub">Opens camera</span>
+      </label>
+      <label class="cam-btn" for="inp-gal">
+        <span class="cam-btn-icon">🖼️</span>
+        <span class="cam-btn-label">Choose Photo</span>
+        <span class="cam-btn-sub">From gallery</span>
+      </label>
+    </div>
+
+    <!-- Camera input: opens camera directly on Android -->
+    <input type="file" id="inp-cam" accept="image/*" capture="environment" onchange="handleFiles(this)">
+    <!-- Gallery input: opens file picker / gallery on Android -->
+    <input type="file" id="inp-gal" accept="image/*" multiple onchange="handleFiles(this)">
+
+    <div id="img-grid" class="img-grid" style="display:none"></div>
+
+    <div id="queue-sec" style="display:none">
+      <div class="btn-row">
+        <button class="btn btn-p" id="analyze-btn" onclick="analyzeAll()">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 11L5 7l4 4L14 2"/></svg>
+          Analyze Reports
+        </button>
+        <button class="btn btn-sm" onclick="clearQueue()">Clear</button>
+      </div>
+    </div>
+
+    <div id="prog-wrap" style="display:none" class="prog-wrap">
+      <div class="prog-label" id="prog-label">Analyzing…</div>
+      <div class="prog-sub" id="prog-sub">Claude AI is reading the report</div>
+      <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:5%"></div></div>
+    </div>
+
+    <div id="recent-cards"></div>
+  </div>
+
+  <!-- REPORTS -->
+  <div id="tab-table" class="screen">
+    <button class="btn" style="width:100%;justify-content:center;margin-bottom:12px;background:#fcebeb;color:#e24b4a;border-color:#f09595;font-weight:600" onclick="confirmNewPatient()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 6H6m0 0H0m6 0V0m0 6v6"/></svg>
+      New Patient — Clear All Data
+    </button>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-val" id="s-rep">0</div><div class="stat-lbl">Reports</div></div>
+      <div class="stat-card"><div class="stat-val" id="s-par">0</div><div class="stat-lbl">Parameters</div></div>
+      <div class="stat-card"><div class="stat-val" id="s-flag">0</div><div class="stat-lbl">Flagged</div></div>
+    </div>
+    <div id="tbl-sec">
+      <div class="empty">
+        <div class="empty-ico">🩸</div>
+        <div class="empty-title">No reports yet</div>
+        <div style="font-size:13px">Upload and analyze blood test photos first</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT -->
+  <div id="tab-export" class="screen">
+    <button class="btn" style="width:100%;justify-content:center;margin-bottom:12px;background:#fcebeb;color:#e24b4a;border-color:#f09595;font-weight:600" onclick="confirmNewPatient()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 6H6m0 0H0m6 0V0m0 6v6"/></svg>
+      New Patient — Clear All Data
+    </button>
+    <div class="card">
+      <div class="card-hd">
+        <span style="font-weight:600;font-size:14px">Patient details</span>
+        <span class="badge b-new" id="auto-badge" style="display:none">Auto-detected</span>
+      </div>
+      <div class="card-bd">
+        <div class="field-row">
+          <div class="field-lbl">Patient name</div>
+          <input class="field" id="patient-name" type="text" placeholder="e.g. Ms. Raosona Begam" oninput="syncPatient()" autocomplete="name" autocorrect="off" autocapitalize="words">
+        </div>
+        <div class="field-row" style="margin-bottom:0">
+          <div class="field-lbl">Age / gender (optional)</div>
+          <input class="field" id="patient-age" type="text" placeholder="e.g. 58 years, Female" autocorrect="off">
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span style="font-weight:600;font-size:14px">Export as</span></div>
+      <div class="card-bd" style="padding-top:10px">
+        <div class="export-grid">
+          <div class="export-btn" onclick="exportExcel()"><div class="e-icon">📊</div><div class="e-lbl">Excel</div><div class="e-sub">.xlsx</div></div>
+          <div class="export-btn" onclick="exportPDF()"><div class="e-icon">📄</div><div class="e-lbl">PDF</div><div class="e-sub">formatted</div></div>
+          <div class="export-btn" onclick="exportJPEG()"><div class="e-icon">🖼️</div><div class="e-lbl">Image</div><div class="e-sub">.jpeg</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span style="font-weight:600;font-size:14px">Summary</span></div>
+      <div class="card-bd" id="exp-sum"><p style="font-size:13px;color:var(--muted)">No data yet.</p></div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<!-- DATE MODAL -->
+<div class="modal-bg" id="date-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Confirm report date</div>
+    <div class="modal-sub" id="date-modal-sub">Please confirm or correct the date.</div>
+    <div class="field-row">
+      <div class="field-lbl">Collection / report date</div>
+      <input class="field" type="date" id="date-input">
+    </div>
+    <button class="btn btn-p" style="width:100%;justify-content:center;font-size:15px;padding:14px" onclick="confirmDate()">Confirm ✓</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── STATE ── */
+let queue=[], allData={}, patientInfo={name:'',age:'',gender:''};
+let pendingDateResolve=null;
+
+/* ── INIT ── */
+function init(){
+  try{const p=localStorage.getItem('bt_patient');if(p){patientInfo=JSON.parse(p);syncPatientUI();}}catch(e){}
+  try{const d=localStorage.getItem('bt_data');if(d){allData=JSON.parse(d);}}catch(e){}
+  // Check for saved Gemini key
+  const savedKey = localStorage.getItem('bt_groq_key');
+  if(savedKey){ geminiKey = savedKey; showGeminiOk(); }
+}
+
+/* ── GEMINI KEY ── */
+var geminiKey = ''; // Groq API key
+
+function saveGeminiKey(){
+  const v = document.getElementById('gemini-key-input').value.trim();
+  if(!v){ toast('Please paste your API key'); return; }
+  geminiKey = v;
+  localStorage.setItem('bt_groq_key', v);
+  showGeminiOk();
+  toast('✅ Key saved! You can now analyze reports.');
+}
+
+function showGeminiOk(){
+  document.getElementById('gemini-setup').style.display='none';
+  document.getElementById('gemini-ok').style.display='flex';
+}
+
+/* ── TABS ── */
+function showTab(t){
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['upload','table','export'][i]===t));
+  document.querySelectorAll('.screen').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  if(t==='table') renderTable();
+  if(t==='export') renderExportSummary();
+}
+
+/* ── TOAST ── */
+function toast(msg,dur=3500){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),dur);
+}
+
+/* ── PATIENT ── */
+function initials(n){return(n||'?').trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().substring(0,2);}
+function syncPatientUI(){
+  document.getElementById('patient-name').value=patientInfo.name||'';
+  document.getElementById('patient-age').value=[patientInfo.age,patientInfo.gender].filter(Boolean).join(', ');
+  updateBanner();
+}
+function updateBanner(){
+  const b=document.getElementById('pat-banner');
+  if(!patientInfo.name){b.style.display='none';return;}
+  b.style.display='flex';
+  document.getElementById('pat-av').textContent=initials(patientInfo.name);
+  document.getElementById('pat-nm').textContent=patientInfo.name;
+  document.getElementById('pat-mt').textContent=[patientInfo.age,patientInfo.gender].filter(Boolean).join(', ')||'Patient';
+}
+function syncPatient(){
+  patientInfo.name=document.getElementById('patient-name').value;
+  try{localStorage.setItem('bt_patient',JSON.stringify(patientInfo));}catch(e){}
+  updateBanner();
+}
+
+function confirmNewPatient(){
+  if(!confirm('Start a new patient? This will clear all scans and report data.')) return;
+  newPatient();
+}
+
+function newPatient(){
+  // Clear all data
+  queue=[];
+  allData={};
+  patientInfo={name:'',age:'',gender:''};
+  // Clear localStorage
+  try{localStorage.removeItem('bt_patient');}catch(e){}
+  try{localStorage.removeItem('bt_data');}catch(e){}
+  // Reset UI
+  document.getElementById('img-grid').innerHTML='';
+  document.getElementById('img-grid').style.display='none';
+  document.getElementById('queue-sec').style.display='none';
+  document.getElementById('recent-cards').innerHTML='';
+  document.getElementById('pat-banner').style.display='none';
+  document.getElementById('auto-badge').style.display='none';
+  document.getElementById('patient-name').value='';
+  document.getElementById('patient-age').value='';
+  // Reset analyze button
+  const btn=document.getElementById('analyze-btn');
+  if(btn){btn.innerHTML='<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 11L5 7l4 4L14 2"/></svg> Analyze Reports';btn.disabled=false;}
+  // Go to upload tab
+  showTab('upload');
+  toast('✅ Ready for new patient');
+}
+
+/* ── FILE HANDLING ── */
+function handleFiles(input){
+  if(!input.files||!input.files.length) return;
+  Array.from(input.files).forEach(file=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      queue.push({file,dataUrl:e.target.result,status:'pending',id:Date.now()+Math.random()});
+      renderQueue();
+      document.getElementById('queue-sec').style.display='';
+      document.getElementById('img-grid').style.display='';
+    };
+    reader.onerror=()=>toast('Could not read: '+file.name);
+    reader.readAsDataURL(file);
+  });
+  input.value='';
+}
+function renderQueue(){
+  const map={pending:'⏳ Ready',analyzing:'🔍 Reading…',done:'✅ Done',error:'❌ Error'};
+  document.getElementById('img-grid').innerHTML=queue.map((it,i)=>`
+    <div class="img-thumb">
+      <img src="${it.dataUrl}" alt="">
+      <button class="rm-btn" onclick="removeItem(${i})">×</button>
+      <div class="img-lbl">${map[it.status]||''}</div>
+    </div>`).join('');
+}
+function removeItem(i){
+  queue.splice(i,1); renderQueue();
+  if(!queue.length){document.getElementById('queue-sec').style.display='none';document.getElementById('img-grid').style.display='none';}
+}
+function clearQueue(){
+  queue=[];
+  document.getElementById('img-grid').innerHTML='';
+  document.getElementById('queue-sec').style.display='none';
+  document.getElementById('img-grid').style.display='none';
+  document.getElementById('recent-cards').innerHTML='';
+}
+
+/* ── PROGRESS ── */
+function setProgress(label,sub,pct){
+  document.getElementById('prog-wrap').style.display='';
+  document.getElementById('prog-label').textContent=label;
+  document.getElementById('prog-sub').textContent=sub;
+  document.getElementById('prog-fill').style.width=Math.min(Math.round(pct),98)+'%';
+}
+function hideProgress(){
+  document.getElementById('prog-fill').style.width='100%';
+  setTimeout(()=>document.getElementById('prog-wrap').style.display='none',700);
+}
+
+/* ── DATE MODAL ── */
+function askDate(detected,idx){
+  return new Promise(resolve=>{
+    pendingDateResolve=resolve;
+    document.getElementById('date-input').value=detected||new Date().toISOString().split('T')[0];
+    document.getElementById('date-modal-sub').textContent=detected
+      ?`Detected from report ${idx+1}: ${detected}. Confirm or correct.`
+      :`No date found in report ${idx+1}. Please enter the collection date.`;
+    document.getElementById('date-modal').classList.add('open');
+  });
+}
+function confirmDate(){
+  const v=document.getElementById('date-input').value||new Date().toISOString().split('T')[0];
+  document.getElementById('date-modal').classList.remove('open');
+  if(pendingDateResolve){pendingDateResolve(v);pendingDateResolve=null;}
+}
+
+/* ── MAIN ANALYZE LOOP ── */
+async function analyzeAll(){
+  if(!geminiKey){
+    toast('Please set up your free Gemini API key first');
+    document.getElementById('gemini-setup').style.display='';
+    showTab('upload');
+    return;
+  }
+  const pending=queue.filter(q=>q.status==='pending');
+  if(!pending.length){toast('No pending reports');return;}
+  const btn=document.getElementById('analyze-btn');
+  btn.innerHTML=`<span class="spin"></span> Analyzing…`; btn.disabled=true;
+
+  for(let i=0;i<pending.length;i++){
+    const item=pending[i];
+    item.status='analyzing'; renderQueue();
+    try{
+      setProgress(`Report ${i+1} of ${pending.length}`,'Claude AI is reading the report…',20);
+
+      const result=await analyzeWithClaude(item.dataUrl);
+
+      setProgress(`Report ${i+1} of ${pending.length}`,'Processing results…',90);
+
+      if(result.patient_name&&!patientInfo.name){
+        patientInfo.name=result.patient_name;
+        patientInfo.age=result.patient_age||'';
+        patientInfo.gender=result.patient_gender||'';
+        try{localStorage.setItem('bt_patient',JSON.stringify(patientInfo));}catch(e){}
+        syncPatientUI();
+        document.getElementById('auto-badge').style.display='';
+      }
+
+      const date=await askDate(result.report_date, i);
+
+      if(!allData[date]) allData[date]={};
+      (result.parameters||[]).forEach(p=>{
+        if(p.name&&p.value)
+          allData[date][p.name]={value:p.value,unit:p.unit||'',range:p.range||'',status:p.status||'normal'};
+      });
+
+      item.detectedDate=date;
+      item.detectedName=result.patient_name;
+      item.labName=result.lab_name;
+      item.extracted=(result.parameters||[]).length;
+      item.status='done';
+
+    }catch(err){
+      item.status='error';
+      console.error(err);
+      const errMsg = err && err.message ? err.message : String(err);
+      toast('⚠️ Report '+(i+1)+': '+errMsg, 10000);
+    }
+    renderQueue();
+  }
+
+  hideProgress();
+  btn.innerHTML=`<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 11L5 7l4 4L14 2"/></svg> Analyze Reports`;
+  btn.disabled=false;
+  try{localStorage.setItem('bt_data',JSON.stringify(allData));}catch(e){}
+  updateBanner(); renderRecentCards();
+  const done=pending.filter(q=>q.status==='done').length;
+  if(done) toast(`✅ ${done} report${done>1?'s':''} analyzed! Check Reports tab.`);
+}
+
+/* ── GEMINI AI VISION ── */
+async function analyzeWithClaude(dataUrl){
+  // dataUrl is a base64 data URL — extract the base64 part and mime type
+  const parts = dataUrl.split(',');
+  const mime = parts[0].split(':')[1].split(';')[0] || 'image/jpeg';
+  const b64 = parts[1];
+
+  const prompt = `You are analyzing a blood test report image from an Indian laboratory.
+
+First identify the TEST PANEL TYPE from the report heading (e.g. Complete Blood Count / Hemogram, LFT / Liver Function Test, KFT / Kidney Function Test, Lipid Profile, Thyroid Profile, etc.)
+
+Then extract ONLY the parameters listed below for each panel. If the report contains multiple panels, apply the rules for each.
+
+PANEL RULES — extract ONLY these parameters:
+
+COMPLETE BLOOD COUNT / HEMOGRAM / CBC:
+- Hemoglobin (Hb) — the single value next to "Hemoglobin (Hb)" in the main table
+- Total Leucocyte Count (TLC) — the single value next to "Total Leucocyte Count (TLC)" in the main table. This is usually a 4-5 digit number like 5190 or 6100. Do NOT use values from the "Absolute Leucocyte Count" or "Differential Leucocyte Count" sub-sections — those are sub-components, not TLC.
+- Platelet Count — the value next to "Platelet Count" in the main table, usually 100,000–400,000
+
+LFT / LIVER FUNCTION TEST:
+- Bilirubin Total
+- Bilirubin Direct
+- Bilirubin Indirect
+- ALT / SGPT
+- AST / SGOT
+- ALP / Alkaline Phosphatase
+- Total Protein
+- Albumin
+- Globulin
+
+KFT / KIDNEY FUNCTION TEST / RENAL:
+- Serum Creatinine
+- Blood Urea / Urea
+- Uric Acid
+- eGFR (if present)
+
+LIPID PROFILE:
+- Total Cholesterol
+- Triglycerides
+- HDL Cholesterol
+- LDL Cholesterol
+- VLDL Cholesterol
+
+THYROID PROFILE:
+- TSH
+- T3
+- T4
+
+DIABETES / BLOOD GLUCOSE:
+- Fasting Blood Glucose
+- Post Prandial Blood Glucose
+- HbA1c
+
+IRON STUDIES:
+- Serum Iron
+- Ferritin
+- TIBC
+
+VITAMINS:
+- Vitamin D
+- Vitamin B12
+
+VIRAL SEROLOGY / HEPATITIS PANEL:
+- HAV IgM / Hepatitis A IgM
+- HBsAg / Hepatitis B Surface Antigen
+- Anti-HBs / HBsAb
+- HBeAg
+- Anti-HCV / HCV Antibody
+- HEV IgM / Hepatitis E IgM
+- HEV IgG
+- HIV 1 & 2
+- VDRL / RPR
+For serology: value must be Positive or Negative. status = high if Positive, normal if Negative.
+
+AUTOIMMUNE SEROLOGY:
+- ANA, Anti-dsDNA, ANCA, Anti-CCP, RF, C3, C4, Anti-TPO, Anti-Thyroglobulin, AMA, ASMA, Anti-LKM, IgG4
+For autoimmune: value = Positive or Negative (or titre like 1:160). status = high if positive.
+
+URINE ROUTINE:
+- Colour, Appearance, pH, Specific Gravity, Protein, Glucose, Ketones, Bilirubin, Blood, WBC/Pus Cells
+
+If the report is for a panel NOT listed above, extract ALL parameters from that panel.
+
+Return ONLY valid JSON with no markdown fences, no explanation:
+{
+  "patient_name": "full patient name or null",
+  "patient_age": "age string e.g. 58 yrs or null",
+  "patient_gender": "Male or Female or null",
+  "report_date": "sample COLLECTION date in YYYY-MM-DD format or null",
+  "lab_name": "laboratory name or null",
+  "panel_type": "detected panel name",
+  "parameters": [
+    {
+      "name": "exact test name",
+      "value": "numeric result OR Positive/Negative as appropriate",
+      "unit": "unit of measurement",
+      "range": "reference range",
+      "status": "normal or high or low"
+    }
+  ]
+}
+
+CBC SPECIAL RULES — very important:
+- "Total Leucocyte Count (TLC)" is the MAIN white blood cell count (e.g. 5190 Cells/cu.mm). It appears as a single bold row.
+- The "Absolute Leucocyte Count" section below it (Neutrophils 3789, Lymphocytes 1194 etc.) are SUB-COMPONENTS — do NOT use these as TLC.
+- The "Differential Leucocyte Count" section (Neutrophils 73%, Lymphocytes 23% etc.) are percentages — do NOT use these as TLC.
+- Serum Creatinine is a KFT parameter — do NOT include it in CBC results.
+
+DEDUPLICATION — important:
+- ALP and ALP/Alkaline Phosphatase = same test, use name ALP only
+- ALT and ALT/SGPT = same, use ALT
+- AST and AST/SGOT = same, use AST
+- Never include the same test twice
+
+PLATELET COUNT: if result looks like 80-85 (two numbers), that IS the value — record as-is and compare to reference range for status.
+
+Rules:
+- patient_name: from Patient Information section ONLY
+- report_date: Collection/Sample date, NOT Reported date
+- Ignore: doctor info, address, barcode, footer, methodology`;
+
+  // Groq API — free, no regional restrictions, Llama 4 Scout vision
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + geminiKey
+    },
+    body: JSON.stringify({
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: 'data:' + mime + ';base64,' + b64 } }
+        ]
+      }],
+      temperature: 0.1,
+      max_tokens: 2048
+    })
+  });
+
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    const msg = (err.error && err.error.message) ? err.error.message : 'Groq error ' + res.status;
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  const text = (data.choices &&
+                data.choices[0] &&
+                data.choices[0].message &&
+                data.choices[0].message.content) ? data.choices[0].message.content : '';
+
+  if(!text || text.trim().length < 5){
+    throw new Error('Empty response from Gemini. Please try again.');
+  }
+
+  const j1 = text.indexOf('{');
+  const j2 = text.lastIndexOf('}');
+  if(j1 === -1 || j2 <= j1){
+    throw new Error('No JSON in response. Got: ' + text.substring(0, 100));
+  }
+
+  const parsed = JSON.parse(text.substring(j1, j2 + 1));
+  if(!parsed.parameters || !parsed.parameters.length){
+    throw new Error('No parameters found. Ensure the full report is visible.');
+  }
+
+  // Client-side deduplication
+  const ALIASES = {
+    'alp / alkaline phosphatase': 'ALP', 'alkaline phosphatase': 'ALP',
+    'alt / sgpt': 'ALT', 'sgpt': 'ALT',
+    'ast / sgot': 'AST', 'sgot': 'AST',
+    'total leucocyte count (tlc)': 'Total Leucocyte Count',
+    'tlc': 'Total Leucocyte Count', 'wbc count': 'Total Leucocyte Count', 'wbc': 'Total Leucocyte Count',
+    'hb': 'Hemoglobin', 'haemoglobin': 'Hemoglobin',
+    'haemoglobin (hb)': 'Hemoglobin', 'hemoglobin (hb)': 'Hemoglobin',
+    'bilirubin (total)': 'Total Bilirubin', 'bilirubin total': 'Total Bilirubin',
+    'bilirubin (direct)': 'Direct Bilirubin', 'bilirubin direct': 'Direct Bilirubin',
+    'bilirubin (indirect)': 'Indirect Bilirubin', 'bilirubin indirect': 'Indirect Bilirubin',
+    'plt': 'Platelet Count', 'platelets': 'Platelet Count',
+  };
+  const seen = {};
+  const deduped = [];
+  (parsed.parameters || []).forEach(function(p){
+    p.name = ALIASES[p.name.toLowerCase()] || p.name;
+    const key = p.name.toLowerCase();
+    if(!seen[key]){
+      seen[key] = true;
+      deduped.push(p);
+    } else {
+      const existing = deduped.find(function(x){ return x.name.toLowerCase() === key; });
+      if(existing && !existing.value && p.value){
+        existing.value = p.value;
+        existing.unit = p.unit || existing.unit;
+        existing.range = p.range || existing.range;
+        existing.status = p.status || existing.status;
+      }
+    }
+  });
+  parsed.parameters = deduped;
+
+  return parsed;
+}
+
+/* ── RENDER RECENT CARDS ── */
+function renderRecentCards(){
+  const done=queue.filter(q=>q.status==='done'); if(!done.length) return;
+  document.getElementById('recent-cards').innerHTML=done.map(q=>`
+    <div class="card"><div class="card-hd">
+      <div>
+        <div style="font-size:13px;font-weight:600">${q.detectedName||patientInfo.name||'Patient'}</div>
+        ${q.labName?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${q.labName}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        ${q.detectedDate?`<div style="background:var(--teal-l);color:var(--teal-d);border-radius:7px;padding:3px 9px;font-size:11px;font-weight:600">${q.detectedDate}</div>`:''}
+        <span class="badge b-ok">${q.extracted||0} values found</span>
+      </div>
+    </div></div>`).join('');
+}
+
+/* ── TABLE ── */
+function getAllParams(){
+  const s=new Set();
+  Object.values(allData).forEach(d=>Object.keys(d).forEach(k=>s.add(k)));
+  return[...s].sort();
+}
+function renderTable(){
+  const dates=Object.keys(allData).sort(), params=getAllParams();
+  let flags=0;
+  Object.values(allData).forEach(d=>Object.values(d).forEach(v=>{if(v.status!=='normal')flags++;}));
+  document.getElementById('s-rep').textContent=dates.length;
+  document.getElementById('s-par').textContent=params.length;
+  document.getElementById('s-flag').textContent=flags;
+  const el=document.getElementById('tbl-sec');
+  if(!dates.length){
+    el.innerHTML=`<div class="empty"><div class="empty-ico">🩸</div><div class="empty-title">No reports yet</div><div style="font-size:13px">Upload and analyze blood test photos first</div></div>`;
+    return;
+  }
+  let html='';
+  if(patientInfo.name){
+    html+=`<div class="pat-banner" style="margin-bottom:12px">
+      <div class="pat-av">${initials(patientInfo.name)}</div>
+      <div><div class="pat-name">${patientInfo.name}</div>
+      <div class="pat-meta">${[patientInfo.age,patientInfo.gender].filter(Boolean).join(', ')||'Patient'} · ${dates.length} report${dates.length>1?'s':''}</div></div>
+    </div>`;
+  }
+  html+=`<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Unit</th><th>Ref Range</th>`;
+  dates.forEach(d=>html+=`<th>${d}</th>`);
+  html+=`</tr></thead><tbody>`;
+  params.forEach(p=>{
+    html+=`<tr><td style="font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis">${p}</td>`;
+    const fd=dates.find(d=>allData[d]?.[p]);
+    html+=`<td style="color:var(--muted);font-size:11px">${fd?allData[fd][p].unit:''}</td>`;
+    html+=`<td style="color:var(--hint);font-size:11px">${fd?allData[fd][p].range:''}</td>`;
+    dates.forEach(d=>{
+      const v=allData[d]?.[p];
+      if(v){
+        const val = v.value || '';
+        const isSerology = /^(positive|negative|reactive|non.?reactive|detected|not detected)$/i.test(val.trim());
+        if(isSerology){
+          const isPos = /^(positive|reactive|detected)$/i.test(val.trim());
+          const cls = isPos ? 'v-hi' : 'v-ok';
+          const icon = isPos ? '⚠' : '✓';
+          html+=`<td class="${cls}" style="font-weight:700">${icon} ${val}</td>`;
+        } else {
+          const cls=v.status==='high'?'v-hi':v.status==='low'?'v-lo':'v-ok';
+          const icon=v.status==='high'?'↑':v.status==='low'?'↓':'';
+          html+=`<td class="${cls}">${val}${icon?`<sup style="font-size:9px">${icon}</sup>`:''}</td>`;
+        }
+      }else html+=`<td style="color:var(--hint)">—</td>`;
+    });
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table></div>`;
+  el.innerHTML=html;
+}
+
+function renderExportSummary(){
+  const dates=Object.keys(allData).sort(), params=getAllParams();
+  const el=document.getElementById('exp-sum');
+  if(!dates.length){el.innerHTML=`<p style="font-size:13px;color:var(--muted)">No data yet.</p>`;return;}
+  el.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
+    <div><span style="color:var(--muted)">Reports:</span> <strong>${dates.length}</strong></div>
+    <div><span style="color:var(--muted)">Parameters:</span> <strong>${params.length}</strong></div>
+    <div><span style="color:var(--muted)">Dates:</span> <strong>${dates[0]}${dates.length>1?' → '+dates[dates.length-1]:''}</strong></div>
+  </div>`;
+}
+
+function getName(){return document.getElementById('patient-name').value||'Patient';}
+function getAG(){return document.getElementById('patient-age').value||'';}
+
+/* ── EXPORTS ── */
+function exportExcel(){
+  const dates=Object.keys(allData).sort(), params=getAllParams();
+  if(!params.length){toast('No data to export');return;}
+  const name=getName(), ag=getAG();
+  const rows=[['BloodTrack — Blood Test Report'],[],['Patient',name],
+    ...(ag?[['Age/Gender',ag]]:[]),['Generated',new Date().toLocaleDateString('en-IN')],[],
+    ['Parameter','Unit','Reference Range',...dates]];
+  params.forEach(p=>{
+    const fd=dates.find(d=>allData[d]?.[p]);
+    const row=[p,fd?allData[fd][p].unit:'',fd?allData[fd][p].range:''];
+    dates.forEach(d=>row.push(allData[d]?.[p]?allData[d][p].value:''));
+    rows.push(row);
+  });
+  const wb=XLSX.utils.book_new(), ws=XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb,ws,'Blood Reports');
+  XLSX.writeFile(wb,`${name.replace(/ /g,'_')}_BloodReports.xlsx`);
+  toast('📊 Excel downloaded!');
+}
+
+function exportPDF(){
+  const dates=Object.keys(allData).sort(), params=getAllParams();
+  if(!params.length){toast('No data to export');return;}
+  const name=getName(), ag=getAG();
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(15,110,86);doc.text('BloodTrack',14,15);
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(60,60,60);
+  doc.text(`Patient: ${name}${ag?'  |  '+ag:''}`,14,23);
+  doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}  |  Dates: ${dates.join(', ')}`,14,30);
+  doc.setDrawColor(15,110,86);doc.setLineWidth(.4);doc.line(14,34,283,34);
+  const ecw=Math.max(18,Math.min(34,(200-dates.length*2)/dates.length));
+  const cW=[60,18,26,...Array(dates.length).fill(ecw)];
+  let y=41,x=14;
+  doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(120,120,120);
+  ['Parameter','Unit','Ref Range',...dates].forEach((h,i)=>{doc.text(String(h),x,y);x+=cW[i];});
+  y+=2;doc.setDrawColor(210,210,210);doc.line(14,y,283,y);y+=4;doc.setFont('helvetica','normal');
+  params.forEach((p,ri)=>{
+    if(y>192){doc.addPage();y=18;}
+    if(ri%2===0){doc.setFillColor(244,247,245);doc.rect(14,y-3,269,6.5,'F');}
+    x=14;
+    const fd=dates.find(d=>allData[d]?.[p]);
+    const row=[p.substring(0,28),fd?allData[fd][p].unit:'',fd?(allData[fd][p].range||'').substring(0,13):''];
+    dates.forEach(d=>{const v=allData[d]?.[p];row.push(v?v.value+(v.status==='high'?' H':v.status==='low'?' L':''):'—');});
+    row.forEach((cell,ci)=>{
+      if(ci>2&&String(cell).endsWith(' H'))doc.setTextColor(226,75,74);
+      else if(ci>2&&String(cell).endsWith(' L'))doc.setTextColor(24,95,165);
+      else if(ci===0)doc.setTextColor(26,46,37);else doc.setTextColor(90,122,106);
+      doc.text(String(cell),x,y);x+=cW[ci];
+    });y+=6.5;
+  });
+  doc.save(`${name.replace(/ /g,'_')}_BloodReports.pdf`);
+  toast('📄 PDF downloaded!');
+}
+
+function exportJPEG(){
+  const dates=Object.keys(allData).sort(), params=getAllParams();
+  if(!params.length){toast('No data to export');return;}
+  const name=getName(), ag=getAG();
+  const canvas=document.createElement('canvas');
+  const cW=170,uW=55,rW=80,dW=100,rH=30,hH=90,pad=20;
+  canvas.width=pad*2+cW+uW+rW+dW*dates.length;
+  canvas.height=hH+rH*(params.length+1)+pad;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#f4f7f5';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#0f6e56';ctx.fillRect(0,0,canvas.width,58);
+  ctx.fillStyle='#fff';ctx.font='bold 20px -apple-system,sans-serif';ctx.fillText('🩸 BloodTrack',pad,32);
+  ctx.font='12px sans-serif';ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillText(name+(ag?'  ·  '+ag:''),pad,50);
+  ctx.font='11px sans-serif';ctx.fillStyle='rgba(255,255,255,.6)';ctx.fillText('Generated: '+new Date().toLocaleDateString('en-IN'),pad,64);
+  const sy=hH;
+  ctx.fillStyle='#e8f0ec';ctx.fillRect(0,sy,canvas.width,rH);
+  ctx.font='bold 11px sans-serif';ctx.fillStyle='#5a7a6a';
+  ctx.fillText('Parameter',pad,sy+19);ctx.fillText('Unit',pad+cW,sy+19);
+  ctx.fillText('Ref Range',pad+cW+uW,sy+19);
+  dates.forEach((d,i)=>ctx.fillText(d,pad+cW+uW+rW+i*dW,sy+19));
+  params.forEach((p,ri)=>{
+    const y=sy+rH*(ri+1);
+    ctx.fillStyle=ri%2===0?'#fff':'#f4f7f5';ctx.fillRect(0,y,canvas.width,rH);
+    ctx.font='500 11px sans-serif';ctx.fillStyle='#1a2e25';ctx.fillText(p.substring(0,26),pad,y+19);
+    const fd=dates.find(d=>allData[d]?.[p]);
+    ctx.font='11px sans-serif';ctx.fillStyle='#5a7a6a';
+    if(fd){ctx.fillText(allData[fd][p].unit||'',pad+cW,y+19);ctx.fillText((allData[fd][p].range||'').substring(0,12),pad+cW+uW,y+19);}
+    dates.forEach((d,ci)=>{
+      const v=allData[d]?.[p],bx=pad+cW+uW+rW+ci*dW;
+      if(v){
+        ctx.fillStyle=v.status==='high'?'#e24b4a':v.status==='low'?'#185fa5':'#3b6d11';
+        ctx.font='bold 11px sans-serif';
+        ctx.fillText(v.value+(v.status==='high'?' ↑':v.status==='low'?' ↓':''),bx,y+19);
+      }else{ctx.fillStyle='#c8d5ce';ctx.font='11px sans-serif';ctx.fillText('—',bx,y+19);}
+    });
+  });
+  const link=document.createElement('a');
+  link.download=`${name.replace(/ /g,'_')}_BloodReports.jpeg`;
+  link.href=canvas.toDataURL('image/jpeg',.93);
+  link.click();
+  toast('🖼️ Image saved!');
+}
+
+init();
+</script>
+</body>
+</html>
